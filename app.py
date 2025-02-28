@@ -16,42 +16,25 @@ app = Flask(__name__)
 EMAIL = "asalam.filex@gmail.com"
 PASSWORD = "urfz fxzi pljl iqxa"
 IMAP_SERVER = "imap.gmail.com"
-def retry_imap_connection():
-    global mail
-    for attempt in range(3):
-        try:
-            mail = imaplib.IMAP4_SSL(IMAP_SERVER)
-            mail.login(EMAIL, PASSWORD)
-            print("✅ اتصال IMAP ناجح.")
-            return
-        except Exception as e:
-            print(f"❌ فشل الاتصال (المحاولة {attempt + 1}): {e}")
-            time.sleep(2)
-    print("❌ فشل إعادة الاتصال بعد عدة محاولات.")
-
-def retry_on_error(func):
-    """ديكورتر لإعادة المحاولة عند حدوث خطأ في جلب الرسائل."""
-    def wrapper(*args, **kwargs):
-        retries = 3
-        for attempt in range(retries):
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                if "EOF occurred" in str(e) or "socket" in str(e):
-                    time.sleep(2)
-                    print(f"Retrying... Attempt {attempt + 1}/{retries}")
-                else:
-                    return f"Error fetching emails: {e}"
-        return "Error: Failed after multiple retries."
-    return wrapper
+def get_imap_connection():
+    try:
+        mail = imaplib.IMAP4_SSL(IMAP_SERVER)
+        mail.login(EMAIL, PASSWORD)
+        print("✅ اتصال IMAP ناجح.")
+        return mail
+    except Exception as e:
+        print(f"❌ فشل الاتصال: {e}")
+        raise
 
 @retry_on_error
 def fetch_email_with_link(account, subject_keywords, button_text):
-    retry_imap_connection()
     try:
+        mail = get_imap_connection()  # إنشاء اتصال جديد
         mail.select("inbox")
-        _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-35:]
+        search_criteria = f'(OR {" ".join([f"SUBJECT \"{keyword}\"" for keyword in subject_keywords])})'
+        _, data = mail.search(None, search_criteria)
+        mail_ids = data[0].split()[-10:]
+
         for mail_id in reversed(mail_ids):
             _, msg_data = mail.fetch(mail_id, "(RFC822)")
             raw_email = msg_data[0][1]
@@ -59,28 +42,35 @@ def fetch_email_with_link(account, subject_keywords, button_text):
 
             subject, encoding = decode_header(msg["Subject"])[0]
             if isinstance(subject, bytes):
-                subject = subject.decode(encoding if encoding else "utf-8")
+                subject = subject.decode(encoding or "utf-8", errors="ignore")
 
             if any(keyword in subject for keyword in subject_keywords):
                 for part in msg.walk():
                     if part.get_content_type() == "text/html":
-                        html_content = part.get_payload(decode=True).decode('utf-8', errors='ignore')
-                        if account in html_content:
-                            soup = BeautifulSoup(html_content, 'html.parser')
-                            for a in soup.find_all('a', href=True):
-                                if button_text in a.get_text():
-                                    return a['href']
+                        payload = part.get_payload(decode=True)
+                        if payload:
+                            html_content = payload.decode('utf-8', errors='ignore')
+                            if account in html_content:
+                                soup = BeautifulSoup(html_content, 'html.parser')
+                                for a in soup.find_all('a', href=True):
+                                    if button_text in clean_text(a.get_text()):
+                                        mail.logout()  # إغلاق الجلسة بعد الاستخدام
+                                        return a['href']
+
+        mail.logout()  # إغلاق الجلسة إذا لم يتم العثور على النتيجة
         return "طلبك غير موجود."
     except Exception as e:
-        return f"Error fetching emails: {e}"
+        return f"Error fetching emails: {str(e).encode('utf-8', errors='ignore').decode('utf-8')}"
 
 @retry_on_error
 def fetch_email_with_code(account, subject_keywords):
-    retry_imap_connection()
     try:
+        mail = get_imap_connection()  # إنشاء اتصال جديد
         mail.select("inbox")
-        _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-35:]
+        search_criteria = f'(OR {" ".join([f"SUBJECT \"{keyword}\"" for keyword in subject_keywords])})'
+        _, data = mail.search(None, search_criteria)
+        mail_ids = data[0].split()[-10:]
+
         for mail_id in reversed(mail_ids):
             _, msg_data = mail.fetch(mail_id, "(RFC822)")
             raw_email = msg_data[0][1]
@@ -88,19 +78,24 @@ def fetch_email_with_code(account, subject_keywords):
 
             subject, encoding = decode_header(msg["Subject"])[0]
             if isinstance(subject, bytes):
-                subject = subject.decode(encoding if encoding else "utf-8")
+                subject = subject.decode(encoding or "utf-8", errors="ignore")
 
             if any(keyword in subject for keyword in subject_keywords):
                 for part in msg.walk():
                     if part.get_content_type() == "text/html":
-                        html_content = part.get_payload(decode=True).decode('utf-8', errors='ignore')
-                        if account in html_content:
-                            code_match = re.search(r'\b\d{4}\b', BeautifulSoup(html_content, 'html.parser').get_text())
-                            if code_match:
-                                return code_match.group(0)
+                        payload = part.get_payload(decode=True)
+                        if payload:
+                            html_content = payload.decode('utf-8', errors='ignore')
+                            if account in html_content:
+                                code_match = re.search(r'\b\d{4}\b', html_content)
+                                if code_match:
+                                    mail.logout()  # إغلاق الجلسة بعد الاستخدام
+                                    return code_match.group(0)
+
+        mail.logout()  # إغلاق الجلسة إذا لم يتم العثور على النتيجة
         return "طلبك غير موجود."
     except Exception as e:
-        return f"Error fetching emails: {e}"
+        return f"Error fetching emails: {str(e).encode('utf-8', errors='ignore').decode('utf-8')}"
 
 # ----------------------------------
 # User APIs
