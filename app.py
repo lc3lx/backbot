@@ -51,7 +51,7 @@ def fetch_email_with_link(account, subject_keywords, button_text):
     try:
         mail.select("inbox")
         _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-35:]
+        mail_ids = data[0].split()[-17:]
         for mail_id in reversed(mail_ids):
             _, msg_data = mail.fetch(mail_id, "(RFC822)")
             raw_email = msg_data[0][1]
@@ -80,7 +80,7 @@ def fetch_email_with_code(account, subject_keywords):
     try:
         mail.select("inbox")
         _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-35:]
+        mail_ids = data[0].split()[-17:]
         for mail_id in reversed(mail_ids):
             _, msg_data = mail.fetch(mail_id, "(RFC822)")
             raw_email = msg_data[0][1]
