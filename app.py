@@ -5,12 +5,14 @@ from email.header import decode_header
 from bs4 import BeautifulSoup
 import re
 import time
+from flask_cors import CORS
+
 
 
 
 # Flask setup
 app = Flask(__name__)
-
+CORS(app) 
 
 # Email handling
 EMAIL = "aslam.filex@gmail.com"
