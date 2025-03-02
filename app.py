@@ -63,19 +63,29 @@ def fetch_email_with_link(account, subject_keywords, button_text):
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
 
+            # فك تشفير الموضوع
             subject, encoding = decode_header(msg["Subject"])[0]
             if isinstance(subject, bytes):
                 subject = subject.decode(encoding or "utf-8")
 
             # التحقق مما إذا كانت الكلمات المفتاحية موجودة في الموضوع
             if any(keyword in subject for keyword in subject_keywords):
+                # التحقق من عنوان المستلم (To)
+                to_header = msg.get("To", "")
+                if isinstance(to_header, bytes):
+                    to_header = to_header.decode(encoding or "utf-8", errors="ignore")
+                
+                # فحص ما إذا كان الحساب المدخل هو نفسه المستلم
+                if account.lower() not in to_header.lower():
+                    continue  # تخطي الرسالة إذا لم يكن الحساب هو المستلم
+
                 for part in msg.walk():
                     if part.get_content_type() == "text/html":
                         payload = part.get_payload(decode=True)
                         if payload:
                             html_content = payload.decode('utf-8', errors='ignore')
 
-                            # التحقق من وجود الحساب بدقة باستخدام regex
+                            # البحث عن النص المطلوب باستخدام regex
                             if re.search(rf'\b{re.escape(account)}\b', html_content, re.IGNORECASE):
                                 soup = BeautifulSoup(html_content, 'html.parser')
                                 for a in soup.find_all('a', href=True):
@@ -85,7 +95,6 @@ def fetch_email_with_link(account, subject_keywords, button_text):
         return "طلبك غير موجود."
     except Exception as e:
         return f"Error fetching emails: {e}"
-
 @retry_on_error
 def fetch_email_with_code(account, subject_keywords):
     retry_imap_connection()
@@ -99,19 +108,29 @@ def fetch_email_with_code(account, subject_keywords):
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
 
+            # فك تشفير الموضوع
             subject, encoding = decode_header(msg["Subject"])[0]
             if isinstance(subject, bytes):
                 subject = subject.decode(encoding or "utf-8")
 
             # التحقق مما إذا كانت الكلمات المفتاحية موجودة في الموضوع
             if any(keyword in subject for keyword in subject_keywords):
+                # التحقق من عنوان المستلم (To)
+                to_header = msg.get("To", "")
+                if isinstance(to_header, bytes):
+                    to_header = to_header.decode(encoding or "utf-8", errors="ignore")
+                
+                # فحص ما إذا كان الحساب المدخل هو نفسه المستلم
+                if account.lower() not in to_header.lower():
+                    continue  # تخطي الرسالة إذا لم يكن الحساب هو المستلم
+
                 for part in msg.walk():
                     if part.get_content_type() == "text/html":
                         payload = part.get_payload(decode=True)
                         if payload:
                             html_content = payload.decode('utf-8', errors='ignore')
 
-                            # التحقق من وجود الحساب بدقة باستخدام regex
+                            # البحث عن النص المطلوب باستخدام regex
                             if re.search(rf'\b{re.escape(account)}\b', html_content, re.IGNORECASE):
                                 code_match = re.search(r'\b\d{4}\b', BeautifulSoup(html_content, 'html.parser').get_text())
                                 if code_match:
