@@ -18,6 +18,9 @@ CORS(app)
 EMAIL = "aslam.filex@gmail.com"
 PASSWORD = "urfz fxzi pljl iqxa"
 IMAP_SERVER = "imap.gmail.com"
+
+def clean_text(text):
+    return text.strip()
 def retry_imap_connection():
     global mail
     for attempt in range(3):
