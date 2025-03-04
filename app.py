@@ -101,7 +101,7 @@ def fetch_email_with_code(account, subject_keywords):
     try:
         mail.select("inbox")
         _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-17:]
+        mail_ids = data[0].split()[-50:]  # معالجة آخر 50 رسالة
 
         for mail_id in reversed(mail_ids):
             _, msg_data = mail.fetch(mail_id, "(RFC822)")
@@ -113,13 +113,17 @@ def fetch_email_with_code(account, subject_keywords):
             if isinstance(subject, bytes):
                 subject = subject.decode(encoding or "utf-8")
 
+            print(f"Subject: {subject}")  # تسجيل الموضوع للتحقق
+
             # التحقق مما إذا كانت الكلمات المفتاحية موجودة في الموضوع
             if any(keyword in subject for keyword in subject_keywords):
                 # التحقق من عنوان المستلم (To)
                 to_header = msg.get("To", "")
                 if isinstance(to_header, bytes):
                     to_header = to_header.decode(encoding or "utf-8", errors="ignore")
-                
+
+                print(f"Account: {account}, To Header: {to_header}")  # تسجيل الحساب وعنوان المستلم
+
                 # فحص ما إذا كان الحساب المدخل هو نفسه المستلم
                 if account.lower() not in to_header.lower():
                     continue  # تخطي الرسالة إذا لم يكن الحساب هو المستلم
@@ -130,14 +134,21 @@ def fetch_email_with_code(account, subject_keywords):
                         if payload:
                             html_content = payload.decode('utf-8', errors='ignore')
 
+                            # تحليل HTML باستخدام BeautifulSoup
+                            soup = BeautifulSoup(html_content, 'html.parser')
+                            text_content = soup.get_text()
+
+                            print(f"Searching for code in: {text_content[:100]}...")  # تسجيل أول 100 حرف
+
                             # البحث عن النص المطلوب باستخدام regex
-                            if re.search(rf'\b{re.escape(account)}\b', html_content, re.IGNORECASE):
-                                code_match = re.search(r'\b\d{4}\b', BeautifulSoup(html_content, 'html.parser').get_text())
+                            if re.search(rf'\b{re.escape(account)}\b', text_content, re.IGNORECASE):
+                                code_match = re.search(r'\b\d{4}\b', text_content)
                                 if code_match:
                                     return code_match.group(0)
 
-        return "طلبك غير موجود."
+        return "Request not found."
     except Exception as e:
+        print(f"Error fetching emails: {e}")
         return f"Error fetching emails: {e}"
 
 @retry_on_error
