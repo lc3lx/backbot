@@ -211,7 +211,7 @@ def fetch_residence_code():
     if not account:
         return jsonify(error="Account is required"), 400
 
-    code = fetch_email_with_link(account, ["رمز الوصول المؤقت"])
+    code = fetch_email_with_link(account, ["رمز الوصول المؤقت"], "الحصول على الرمز")
     return jsonify(code=code), 200
 
 # /api/fetch-password-reset-link
