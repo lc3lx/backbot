@@ -1,261 +1,234 @@
-from flask import Flask, request, jsonify
+
+import os
+from datetime import datetime, timedelta
+import time
+import re
 import imaplib
 import email
 from email.header import decode_header
 from bs4 import BeautifulSoup
-import re
-import time
+from flask import Flask, request, jsonify, url_for, render_template, redirect, session
 from flask_cors import CORS
+import jwt
+from functools import wraps
 
-
-
-
-# Flask setup
+# ----------------------------------
+# Configuration
+# ----------------------------------
 app = Flask(__name__)
-CORS(app) 
+CORS(app)
+# استخدم متغير بيئة للسرية أو افتراضي
+app.secret_key = "aslam2001aslaam23456"
 
-# Email handling
-EMAIL = "aslam.filex@gmail.com"
-PASSWORD = "urfz fxzi pljl iqxa"
-IMAP_SERVER = "imap.gmail.com"
+# بيانات الدخول الإدارية
+ADMIN_EMAIL = 'aslam.fix'
+ADMIN_PASSWORD = '@'
 
+# إعدادات JWT
+JWT_SECRET = os.getenv('JWT_SECRET', 'your-jwt-secret')
+JWT_ALGORITHM = 'HS256'
+
+# إعدادات البريد الإلكتروني
+EMAIL = 'aslam.filex@gmail.com'
+PASSWORD =  'urfz fxzi pljl iqxa'
+IMAP_SERVER ='imap.gmail.com'
+
+# ----------------------------------
+# وظائف مساعدة للبريد
+# ----------------------------------
 def clean_text(text):
     return text.strip()
+
 def retry_imap_connection():
     global mail
-    for attempt in range(3):
+    for _ in range(3):
         try:
             mail = imaplib.IMAP4_SSL(IMAP_SERVER)
             mail.login(EMAIL, PASSWORD)
-            print("✅ اتصال IMAP ناجح.")
+            mail.select('inbox')  # اختيار صندوق الوارد مباشرة بعد تسجيل الدخول
             return
-        except Exception as e:
-            print(f"❌ فشل الاتصال (المحاولة {attempt + 1}): {e}")
+        except Exception:
+            if mail:
+                try:
+                    mail.logout()
+                except:
+                    pass
             time.sleep(2)
-    print("❌ فشل إعادة الاتصال بعد عدة محاولات.")
+    raise ConnectionError("Failed to connect to IMAP server")
+
 
 def retry_on_error(func):
-    """ديكورتر لإعادة المحاولة عند حدوث خطأ في جلب الرسائل."""
     def wrapper(*args, **kwargs):
-        retries = 3
-        for attempt in range(retries):
+        for _ in range(3):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                if "EOF occurred" in str(e) or "socket" in str(e):
+                if 'EOF occurred' in str(e) or 'socket' in str(e):
                     time.sleep(2)
-                    print(f"Retrying... Attempt {attempt + 1}/{retries}")
                 else:
-                    return f"Error fetching emails: {e}"
-        return "Error: Failed after multiple retries."
+                    raise
+        raise RuntimeError('Failed after retries')
     return wrapper
 
 @retry_on_error
-def fetch_email_with_link(account, subject_keywords, button_text):
+def fetch_email_with_link(account, subject_keywords, button_text=None):
     retry_imap_connection()
-    try:
-        mail.select("inbox")
-        _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-17:]
-
-        for mail_id in reversed(mail_ids):
-            _, msg_data = mail.fetch(mail_id, "(RFC822)")
-            raw_email = msg_data[0][1]
-            msg = email.message_from_bytes(raw_email)
-
-            # فك تشفير الموضوع
-            subject, encoding = decode_header(msg["Subject"])[0]
-            if isinstance(subject, bytes):
-                subject = subject.decode(encoding or "utf-8")
-
-            # التحقق مما إذا كانت الكلمات المفتاحية موجودة في الموضوع
-            if any(keyword in subject for keyword in subject_keywords):
-                # التحقق من عنوان المستلم (To)
-                to_header = msg.get("To", "")
-                if isinstance(to_header, bytes):
-                    to_header = to_header.decode(encoding or "utf-8", errors="ignore")
-                
-                # فحص ما إذا كان الحساب المدخل هو نفسه المستلم
-                if account.lower() not in to_header.lower():
-                    continue  # تخطي الرسالة إذا لم يكن الحساب هو المستلم
-
-                for part in msg.walk():
-                    if part.get_content_type() == "text/html":
-                        payload = part.get_payload(decode=True)
-                        if payload:
-                            html_content = payload.decode('utf-8', errors='ignore')
-
-                            # البحث عن النص المطلوب باستخدام regex
-                            if re.search(rf'\b{re.escape(account)}\b', html_content, re.IGNORECASE):
-                                soup = BeautifulSoup(html_content, 'html.parser')
-                                for a in soup.find_all('a', href=True):
-                                    if button_text in clean_text(a.get_text()):
-                                        return a['href']
-
-        return "طلبك غير موجود."
-    except Exception as e:
-        return f"Error fetching emails: {e}"
-@retry_on_error
-def fetch_email_with_code(account, subject_keywords):
-    retry_imap_connection()
-    try:
-        mail.select("inbox")
-        _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-50:]  # معالجة آخر 50 رسالة
-
-        for mail_id in reversed(mail_ids):
-            _, msg_data = mail.fetch(mail_id, "(RFC822)")
-            raw_email = msg_data[0][1]
-            msg = email.message_from_bytes(raw_email)
-
-            # فك تشفير الموضوع
-            subject, encoding = decode_header(msg["Subject"])[0]
-            if isinstance(subject, bytes):
-                subject = subject.decode(encoding or "utf-8")
-
-            print(f"Subject: {subject}")  # تسجيل الموضوع للتحقق
-
-            # التحقق مما إذا كانت الكلمات المفتاحية موجودة في الموضوع
-            if any(keyword in subject for keyword in subject_keywords):
-                # التحقق من عنوان المستلم (To)
-                to_header = msg.get("To", "")
-                if isinstance(to_header, bytes):
-                    to_header = to_header.decode(encoding or "utf-8", errors="ignore")
-
-                print(f"Account: {account}, To Header: {to_header}")  # تسجيل الحساب وعنوان المستلم
-
-                # فحص ما إذا كان الحساب المدخل هو نفسه المستلم
-                if account.lower() not in to_header.lower():
-                    continue  # تخطي الرسالة إذا لم يكن الحساب هو المستلم
-
-                for part in msg.walk():
-                    if part.get_content_type() == "text/html":
-                        payload = part.get_payload(decode=True)
-                        if payload:
-                            html_content = payload.decode('utf-8', errors='ignore')
-
-                            # تحليل HTML باستخدام BeautifulSoup
-                            soup = BeautifulSoup(html_content, 'html.parser')
-                            text_content = soup.get_text()
-
-                            print(f"Searching for code in: {text_content[:100]}...")  # تسجيل أول 100 حرف
-
-                            # البحث عن النص المطلوب باستخدام regex
-                            if re.search(rf'\b{re.escape(account)}\b', text_content, re.IGNORECASE):
-                                code_match = re.search(r'\b\d{4}\b', text_content)
-                                if code_match:
-                                    return code_match.group(0)
-
-        return "Request not found."
-    except Exception as e:
-        print(f"Error fetching emails: {e}")
-        return f"Error fetching emails: {e}"
+    mail.select('inbox')
+    _, data = mail.search(None, 'ALL')
+    for mid in reversed(data[0].split()[-20:]):
+        _, msg_data = mail.fetch(mid, '(RFC822)')
+        msg = email.message_from_bytes(msg_data[0][1])
+        subj, enc = decode_header(msg['Subject'])[0]
+        if isinstance(subj, bytes): subj = subj.decode(enc or 'utf-8')
+        if not any(k in subj for k in subject_keywords):
+            continue
+        to_hdr = msg.get('To', '')
+        if isinstance(to_hdr, bytes): to_hdr = to_hdr.decode(enc or 'utf-8', errors='ignore')
+        if account.lower() not in to_hdr.lower():
+            continue
+        for part in msg.walk():
+            if part.get_content_type() == 'text/html':
+                html = part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                soup = BeautifulSoup(html, 'html.parser')
+                if button_text:
+                    for a in soup.find_all('a', href=True):
+                        if button_text in clean_text(a.get_text()):
+                            return a['href']
+                a = soup.find('a', href=True)
+                if a:
+                    return a['href']
+    return None
 
 @retry_on_error
 def fetch_email_with_code(account, subject_keywords):
     retry_imap_connection()
+    mail.select('inbox')
+    _, data = mail.search(None, 'ALL')
+    for mid in reversed(data[0].split()[-20:]):
+        _, msg_data = mail.fetch(mid, '(RFC822)')
+        msg = email.message_from_bytes(msg_data[0][1])
+        subj, enc = decode_header(msg['Subject'])[0]
+        if isinstance(subj, bytes): subj = subj.decode(enc or 'utf-8')
+        if not any(k in subj for k in subject_keywords):
+            continue
+        to_hdr = msg.get('To', '')
+        if isinstance(to_hdr, bytes): to_hdr = to_hdr.decode(enc or 'utf-8', errors='ignore')
+        if account.lower() not in to_hdr.lower():
+            continue
+        for part in msg.walk():
+            if part.get_content_type() == 'text/html':
+                html = part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                text = BeautifulSoup(html, 'html.parser').get_text()
+                match = re.search(r'\b\d{4}\b', text)
+                if match:
+                    return match.group(0)
+    return None
+
+# ----------------------------------
+# مصادقة المدير
+# ----------------------------------
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('admin_logged_in'):
+            return redirect(url_for('admin_login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# ----------------------------------
+# المسارات (Routes)
+# ----------------------------------
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        email_in = request.form.get('email')
+        password_in = request.form.get('password')
+        print(f'Login attempt - Email: {email_in}, Password: {password_in}')
+        print(f'Expected - Email: {ADMIN_EMAIL}, Password: {ADMIN_PASSWORD}')
+        if email_in == ADMIN_EMAIL and password_in == ADMIN_PASSWORD:
+            session['admin_logged_in'] = True
+            return redirect(url_for('admin_dashboard'))
+        return render_template('admin_login.html', error='بيانات الدخول غير صحيحة')
+    return render_template('admin_login.html')
+
+@app.route('/admin/dashboard')
+@admin_required
+def admin_dashboard():
+    return render_template('admin_dashboard.html')
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('admin_logged_in', None)
+    return redirect(url_for('index'))
+
+@app.route('/api/generate-subscription-link', methods=['POST'])
+@admin_required
+def generate_subscription_link():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    role = data.get('role')
+    if not user_id or role not in ['normal1', 'normal2']:
+        return jsonify(error='Invalid user_id or role'), 400
+    expiration = datetime.utcnow() + timedelta(days=30)
+    payload = {'user_id': user_id, 'role': role, 'exp': expiration}
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    link = f"{request.host_url}user/{token}"
+    return jsonify(link=link), 200
+
+@app.route('/user/<token>')
+def user_page(token):
     try:
-        mail.select("inbox")
-        _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-17:]
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get('user_id')
+        role = payload.get('role')
+        if datetime.utcnow() > datetime.fromtimestamp(payload['exp']):
+            return render_template('expired.html')
+        return render_template('user.html', user_id=user_id, role=role)
+    except jwt.ExpiredSignatureError:
+        return render_template('expired.html')
+    except jwt.InvalidTokenError:
+        return render_template('invalid.html')
 
-        for mail_id in reversed(mail_ids):
-            _, msg_data = mail.fetch(mail_id, "(RFC822)")
-            raw_email = msg_data[0][1]
-            msg = email.message_from_bytes(raw_email)
-
-            subject, encoding = decode_header(msg["Subject"])[0]
-            if isinstance(subject, bytes):
-                subject = subject.decode(encoding or "utf-8")
-
-            # التحقق مما إذا كانت الكلمات المفتاحية موجودة في الموضوع
-            if any(keyword in subject for keyword in subject_keywords):
-                for part in msg.walk():
-                    if part.get_content_type() == "text/html":
-                        payload = part.get_payload(decode=True)
-                        if payload:
-                            html_content = payload.decode('utf-8', errors='ignore')
-
-                            # التحقق من وجود الحساب بدقة باستخدام regex
-                            if re.search(rf'\b{re.escape(account)}\b', html_content, re.IGNORECASE):
-                                code_match = re.search(r'\b\d{4}\b', BeautifulSoup(html_content, 'html.parser').get_text())
-                                if code_match:
-                                    return code_match.group(0)
-
-        return "طلبك غير موجود."
-    except Exception as e:
-        return f"Error fetching emails: {e}"
-
-# ----------------------------------
-# User APIs
-# ----------------------------------
-
-# /api/fetch-residence-update-link
+# Email-fetch APIs
 @app.route('/api/fetch-residence-update-link', methods=['POST'])
 def fetch_residence_update_link():
-    data = request.get_json()
-    account = data.get('account')
-
-    if not account:
-        return jsonify(error="Account is required"), 400
-
-    link = fetch_email_with_link(account, ["تحديث السكن"], "نعم، أنا قدمت الطلب")
+    account = request.json.get('account')
+    if not account: return jsonify(error='Account is required'), 400
+    link = fetch_email_with_link(account, ['تحديث السكن'], 'نعم، أنا قدمت الطلب')
     return jsonify(link=link), 200
 
-# /api/fetch-residence-code
 @app.route('/api/fetch-residence-code', methods=['POST'])
 def fetch_residence_code():
-    data = request.get_json()
-    account = data.get('account')
-
-    if not account:
-        return jsonify(error="Account is required"), 400
-
-    code = fetch_email_with_link(account, ["رمز الوصول المؤقت"], "الحصول على الرمز")
+    account = request.json.get('account')
+    if not account: return jsonify(error='Account is required'), 400
+    code = fetch_email_with_code(account, ['رمز الوصول المؤقت'])
     return jsonify(code=code), 200
 
-# /api/fetch-password-reset-link
 @app.route('/api/fetch-password-reset-link', methods=['POST'])
 def fetch_password_reset_link():
-    data = request.get_json()
-    account = data.get('account')
-
-    if not account:
-        return jsonify(error="Account is required"), 400
-
-    link = fetch_email_with_link(account, ["إعادة تعيين كلمة المرور"], "إعادة تعيين كلمة المرور")
+    account = request.json.get('account')
+    if not account: return jsonify(error='Account is required'), 400
+    link = fetch_email_with_link(account, ['إعادة تعيين كلمة المرور'], 'إعادة تعيين كلمة المرور')
     return jsonify(link=link), 200
 
-# ----------------------------------
-# Admin APIs
-# ----------------------------------
-
-# /api/fetch-login-code
 @app.route('/api/fetch-login-code', methods=['POST'])
 def fetch_login_code():
-    data = request.get_json()
-    account = data.get('account')
-
-    if not account:
-        return jsonify(error="Account is required"), 400
-
-    code = fetch_email_with_code(account, ["رمز تسجيل الدخول"])
+    account = request.json.get('account')
+    if not account: return jsonify(error='Account is required'), 400
+    code = fetch_email_with_code(account, ['رمز تسجيل الدخول'])
     return jsonify(code=code), 200
 
-# /api/fetch-suspended-account-link
 @app.route('/api/fetch-suspended-account-link', methods=['POST'])
 def fetch_suspended_account_link():
-    data = request.get_json()
-    account = data.get('account')
-
-    if not account:
-        return jsonify(error="Account is required"), 400
-
-    link = fetch_email_with_link(account, ["عضويتك في Netflix معلّقة"], "إضافة معلومات الدفع")
+    account = request.json.get('account')
+    if not account: return jsonify(error='Account is required'), 400
+    link = fetch_email_with_link(account, ['عضويتك في Netflix معلّقة'], 'إضافة معلومات الدفع')
     return jsonify(link=link), 200
 
-
-
-# Run the server
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    port = int(os.getenv('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

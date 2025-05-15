@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}صفحة المستخدم{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="text-center mb-4">مرحباً بك</h2>
+                <div class="mb-3">
+                    <label for="userType" class="form-label">نوع المستخدم</label>
+                    <input type="text" class="form-control" value="{{ role }}" readonly>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <h4>خدمات المستخدم العادي</h4>
+                <div class="mb-3">
+                    <label for="normalAccount" class="form-label">الحساب</label>
+                    <input type="text" class="form-control" id="normalAccount" dir="ltr" placeholder="أدخل الحساب هنا">
+                </div>
+                <div class="d-grid gap-2">
+                    <button onclick="fetchResidenceCode('normalAccount')" class="btn btn-primary">طلب رمز السكن</button>
+                    <button onclick="fetchResidenceUpdateLink('normalAccount')" class="btn btn-primary">رابط تحديث الساكن</button>
+                </div>
+            </div>
+        </div>
+
+        {% if role == 'normal2' %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <h4>خدمات إضافية</h4>
+                <div class="mb-3">
+                    <label for="extraAccount" class="form-label">الحساب</label>
+                    <input type="text" class="form-control" id="extraAccount" dir="ltr" placeholder="أدخل الحساب هنا">
+                </div>
+                <div class="d-grid gap-2">
+                    <button onclick="fetchPasswordResetLink('extraAccount')" class="btn btn-primary">استعادة كلمة المرور</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div id="result" class="card">
+            <div class="card-body"></div>
+        </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        const copyBtn = document.getElementById('copyBtn');
+        copyBtn.innerHTML = '<i class="fas fa-check"></i> تم النسخ';
+        setTimeout(() => {
+            copyBtn.innerHTML = '<i class="fas fa-copy"></i> نسخ';
+        }, 2000);
+    });
+}
+
+async function makeRequest(endpoint, buttonText, inputId) {
+    const account = document.getElementById(inputId).value.trim();
+    if (!account) {
+        document.getElementById('result').innerHTML = `
+            <div class="card-body">
+                <div class="alert alert-danger mb-0">
+                    الرجاء إدخال الحساب
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                account: account
+            })
+        });
+        
+        const data = await response.json();
+        const resultDiv = document.getElementById('result');
+        
+        if (data.error) {
+            resultDiv.innerHTML = `
+                <div class="card-body">
+                    <div class="alert alert-danger mb-0">
+                        ${data.error}
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        let content = '';
+        if (data.link) {
+            content = data.link;
+        } else if (data.code) {
+            content = data.code;
+        }
+
+        if (!content) {
+            resultDiv.innerHTML = `
+                <div class="card-body">
+                    <div class="alert alert-warning mb-0">
+                        لم يتم العثور على نتيجة لهذا الطلب
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        resultDiv.innerHTML = `
+            <div class="card-body">
+                <div class="alert alert-success mb-0">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>تم جلب البيانات بنجاح</span>
+                        <button id="copyBtn" class="btn btn-sm btn-outline-success" onclick="copyToClipboard('${content}')">
+                            <i class="fas fa-copy"></i> نسخ
+                        </button>
+                    </div>
+                    <div class="form-control bg-light">${content}</div>
+                    ${data.link ? `<a href="${content}" class="btn btn-success w-100 mt-2" target="_blank">${buttonText}</a>` : ''}
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        document.getElementById('result').innerHTML = `
+            <div class="card-body">
+                <div class="alert alert-danger mb-0">
+                    ${error.message || 'حدث خطأ في العملية'}
+                </div>
+            </div>
+        `;
+    }
+}
+
+function fetchResidenceCode(inputId) {
+    makeRequest('/api/fetch-residence-code', 'عرض رمز السكن', inputId);
+}
+
+function fetchResidenceUpdateLink(inputId) {
+    makeRequest('/api/fetch-residence-update-link', 'فتح رابط تحديث السكن', inputId);
+}
+
+function fetchPasswordResetLink(inputId) {
+    makeRequest('/api/fetch-password-reset-link', 'فتح رابط استعادة كلمة المرور', inputId);
+}
+</script>
+{% endblock %}
