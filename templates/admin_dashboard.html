@@ -1,40 +1,300 @@
-{% extends "base.html" %} {% block title %}تسجيل دخول الإدارة{% endblock %} {%
-block content %}
-<div class="row justify-content-center">
-  <div class="col-md-6">
-    <div class="card">
-      <div class="card-body">
-        <h2 class="text-center mb-4">تسجيل دخول الإدارة</h2>
-        {% if error %}
-        <div class="alert alert-danger">{{ error }}</div>
-        {% endif %}
-        <form method="POST" action="{{ url_for('admin_login') }}">
-          <div class="mb-3">
-            <label for="username" class="form-label">اسم المستخدم</label>
-            <input
-              type="text"
-              class="form-control"
-              id="username"
-              name="username"
-              required
-            />
+{% extends "base.html" %} {% block title %}لوحة التحكم{% endblock %} {% block
+content %}
+<div class="container">
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="d-flex justify-content-between align-items-center">
+        <h2>لوحة التحكم</h2>
+        <a href="{{ url_for('admin_logout') }}" class="btn btn-danger"
+          >تسجيل الخروج</a
+        >
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">إحصائيات المستخدمين</h5>
+          <p class="card-text">إجمالي المستخدمين: {{ total_users }}</p>
+          <p class="card-text">الاشتراكات النشطة: {{ active_subscriptions }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">إنشاء رابط اشتراك جديد</h5>
+          <form id="subscriptionForm" class="mt-3">
+            <div class="mb-3">
+              <label for="userId" class="form-label">معرف المستخدم</label>
+              <input type="text" class="form-control" id="userId" required />
+            </div>
+            <div class="mb-3">
+              <label for="role" class="form-label">نوع المستخدم</label>
+              <select class="form-select" id="role" required>
+                <option value="normal1">مستخدم عادي</option>
+                <option value="normal2">مستخدم مميز</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">إنشاء الرابط</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Requests -->
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">آخر الطلبات</h5>
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>المستخدم</th>
+                  <th>نوع الطلب</th>
+                  <th>الحساب</th>
+                  <th>الحالة</th>
+                  <th>الوقت</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for request in recent_requests %}
+                <tr>
+                  <td>{{ request.user_id }}</td>
+                  <td>{{ request.request_type }}</td>
+                  <td>{{ request.account }}</td>
+                  <td>
+                    {% if request.status == 'success' %}
+                    <span class="badge bg-success">نجاح</span>
+                    {% else %}
+                    <span class="badge bg-danger">فشل</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ request.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
-          <div class="mb-3">
-            <label for="password" class="form-label">كلمة المرور</label>
-            <input
-              type="password"
-              class="form-control"
-              id="password"
-              name="password"
-              required
-            />
-          </div>
-          <div class="d-grid">
-            <button type="submit" class="btn btn-primary">دخول</button>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   </div>
 </div>
+{% endblock %} {% block scripts %}
+<link
+  rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+/>
+<script>
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      const copyBtn = document.getElementById("copyBtn");
+      copyBtn.innerHTML = '<i class="fas fa-check"></i> تم النسخ';
+      setTimeout(() => {
+        copyBtn.innerHTML = '<i class="fas fa-copy"></i> نسخ';
+      }, 2000);
+    });
+  }
+
+  async function callApi(endpoint, email) {
+    const requestTypes = {
+      "fetch-residence-code": "رمز الوصول المؤقت",
+      "fetch-residence-update-link": "رابط تحديث السكن",
+      "fetch-password-reset-link": "استعادة كلمة المرور",
+      "fetch-login-code": "رمز الدخول",
+      "fetch-suspended-account-link": "تحديث السكن",
+    };
+
+    try {
+      const response = await fetch(`/api/${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ account: email }),
+      });
+
+      const data = await response.json();
+      const resultDiv = document.getElementById("apiResult");
+
+      if (data.error) {
+        resultDiv.innerHTML = `
+                <div class="card-body">
+                    <div class="alert alert-danger mb-0">
+                        ${data.error}
+                    </div>
+                </div>
+            `;
+        return;
+      }
+
+      let content = "";
+      if (data.link) {
+        content = data.link;
+      } else if (data.code) {
+        content = data.code;
+      }
+
+      if (!content) {
+        resultDiv.innerHTML = `
+                <div class="card-body">
+                    <div class="alert alert-warning mb-0">
+                        لم يتم العثور على نتيجة لهذا الطلب
+                    </div>
+                </div>
+            `;
+        return;
+      }
+
+      resultDiv.innerHTML = `
+            <div class="card-body">
+                <div class="alert alert-success mb-0">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>تم جلب البيانات بنجاح</span>
+                        <button id="copyBtn" class="btn btn-sm btn-outline-success" onclick="copyToClipboard('${content}')">
+                            <i class="fas fa-copy"></i> نسخ
+                        </button>
+                    </div>
+                    <div class="form-control bg-light">${content}</div>
+                </div>
+            </div>
+        `;
+
+      // إضافة السجل إلى الجدول
+      const requestsLog = document.getElementById("requestsLog");
+      if (requestsLog) {
+        const logRow = document.createElement("tr");
+        logRow.innerHTML = `
+                <td>${new Date().toLocaleTimeString()}</td>
+                <td dir="ltr">${email}</td>
+                <td>${requestTypes[endpoint]}</td>
+                <td>${content}</td>
+            `;
+        requestsLog.insertBefore(logRow, requestsLog.firstChild);
+      }
+    } catch (error) {
+      document.getElementById("apiResult").innerHTML = `
+            <div class="alert alert-danger">
+                ${error.message}
+            </div>
+        `;
+    }
+  }
+
+  async function fetchResidenceCode() {
+    const email = document.getElementById("email").value;
+    await callApi("fetch-residence-code", email);
+  }
+
+  async function fetchResidenceUpdateLink() {
+    const email = document.getElementById("email").value;
+    await callApi("fetch-residence-update-link", email);
+  }
+
+  async function fetchPasswordResetLink() {
+    const email = document.getElementById("email").value;
+    await callApi("fetch-password-reset-link", email);
+  }
+
+  async function fetchLoginCode() {
+    const email = document.getElementById("email").value;
+    await callApi("fetch-login-code", email);
+  }
+
+  async function fetchSuspendedAccountLink() {
+    const email = document.getElementById("email").value;
+    await callApi("fetch-suspended-account-link", email);
+  }
+
+  async function generateLink() {
+    const userId = document.getElementById("user_id").value;
+    const role = document.getElementById("user_role").value;
+
+    try {
+      const response = await fetch("/api/generate-subscription-link", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          role: role,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.link) {
+        const resultDiv = document.getElementById("linkResult");
+        resultDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <p>تم إنشاء الرابط بنجاح:</p>
+                    <input type="text" class="form-control" value="${data.link}" readonly>
+                </div>
+            `;
+      } else {
+        throw new Error("حدث خطأ في إنشاء الرابط");
+      }
+    } catch (error) {
+      document.getElementById("linkResult").innerHTML = `
+            <div class="alert alert-danger">
+                ${error.message}
+            </div>
+        `;
+    }
+  }
+
+  document
+    .getElementById("subscriptionForm")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const userId = document.getElementById("userId").value;
+      const role = document.getElementById("role").value;
+
+      try {
+        const response = await fetch("/api/generate-subscription-link", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ user_id: userId, role: role }),
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          alert(data.error);
+          return;
+        }
+
+        // عرض الرابط مع زر النسخ
+        const resultDiv = document.createElement("div");
+        resultDiv.className = "alert alert-success mt-3";
+        resultDiv.innerHTML = `
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="flex-grow-1">
+              <strong>تم إنشاء الرابط بنجاح:</strong>
+              <div class="form-control bg-light mt-2" style="word-break: break-all;">${data.link}</div>
+            </div>
+            <button class="btn btn-outline-primary ms-2" onclick="copyToClipboard('${data.link}')">
+              <i class="fas fa-copy"></i> نسخ
+            </button>
+          </div>
+        `;
+
+        // إضافة النتيجة بعد النموذج
+        const form = document.getElementById("subscriptionForm");
+        form.parentNode.insertBefore(resultDiv, form.nextSibling);
+      } catch (error) {
+        alert("حدث خطأ أثناء إنشاء الرابط");
+      }
+    });
+</script>
 {% endblock %}
