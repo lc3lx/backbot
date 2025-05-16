@@ -1,4 +1,3 @@
-
 import os
 from datetime import datetime, timedelta
 import time
@@ -11,6 +10,8 @@ from flask import Flask, request, jsonify, url_for, render_template, redirect, s
 from flask_cors import CORS
 import jwt
 from functools import wraps
+from pymongo import MongoClient
+from bson import ObjectId
 
 # ----------------------------------
 # Configuration
@@ -20,12 +21,25 @@ CORS(app)
 # استخدم متغير بيئة للسرية أو افتراضي
 app.secret_key = "aslam2001aslaam23456"
 
-# بيانات الدخول الإدارية
-ADMIN_EMAIL = 'aslam.fix'
-ADMIN_PASSWORD = '@'
+# MongoDB Configuration
+MONGO_URI = "mongodb+srv://aslamfilex:yX49fFOzrALzxuTO@cluster0.kl0lt7u.mongodb.net/"
+client = MongoClient(MONGO_URI,
+                    tls=True,
+                    tlsAllowInvalidCertificates=True,
+                    serverSelectionTimeoutMS=5000,
+                    connectTimeoutMS=10000)
+db = client['netflix_bot_db']
+
+# Collections
+admins_coll = db['admins']
+users_coll = db['users']
+requests_coll = db['requests']
+subscriptions_coll = db['subscriptions']
+
+
 
 # إعدادات JWT
-JWT_SECRET = os.getenv('JWT_SECRET', 'your-jwt-secret')
+JWT_SECRET = "oamrkali3jjeiodfijlsd"
 JWT_ALGORITHM = 'HS256'
 
 # إعدادات البريد الإلكتروني
@@ -36,93 +50,95 @@ IMAP_SERVER ='imap.gmail.com'
 # ----------------------------------
 # وظائف مساعدة للبريد
 # ----------------------------------
+
 def clean_text(text):
     return text.strip()
 
 def retry_imap_connection():
     global mail
-    for _ in range(3):
+    for attempt in range(3):
         try:
             mail = imaplib.IMAP4_SSL(IMAP_SERVER)
             mail.login(EMAIL, PASSWORD)
-            mail.select('inbox')  # اختيار صندوق الوارد مباشرة بعد تسجيل الدخول
+            print("✅ اتصال IMAP ناجح.")
             return
-        except Exception:
-            if mail:
-                try:
-                    mail.logout()
-                except:
-                    pass
+        except Exception as e:
+            print(f"❌ فشل الاتصال (المحاولة {attempt + 1}): {e}")
             time.sleep(2)
-    raise ConnectionError("Failed to connect to IMAP server")
-
+    print("❌ فشل إعادة الاتصال بعد عدة محاولات.")
 
 def retry_on_error(func):
+    """ديكورتر لإعادة المحاولة عند حدوث خطأ في جلب الرسائل."""
     def wrapper(*args, **kwargs):
-        for _ in range(3):
+        retries = 3
+        for attempt in range(retries):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                if 'EOF occurred' in str(e) or 'socket' in str(e):
+                if "EOF occurred" in str(e) or "socket" in str(e):
                     time.sleep(2)
+                    print(f"Retrying... Attempt {attempt + 1}/{retries}")
                 else:
-                    raise
-        raise RuntimeError('Failed after retries')
+                    return f"Error fetching emails: {e}"
+        return "Error: Failed after multiple retries."
     return wrapper
 
 @retry_on_error
-def fetch_email_with_link(account, subject_keywords, button_text=None):
+def fetch_email_with_link(account, subject_keywords, button_text):
     retry_imap_connection()
-    mail.select('inbox')
-    _, data = mail.search(None, 'ALL')
-    for mid in reversed(data[0].split()[-20:]):
-        _, msg_data = mail.fetch(mid, '(RFC822)')
-        msg = email.message_from_bytes(msg_data[0][1])
-        subj, enc = decode_header(msg['Subject'])[0]
-        if isinstance(subj, bytes): subj = subj.decode(enc or 'utf-8')
-        if not any(k in subj for k in subject_keywords):
-            continue
-        to_hdr = msg.get('To', '')
-        if isinstance(to_hdr, bytes): to_hdr = to_hdr.decode(enc or 'utf-8', errors='ignore')
-        if account.lower() not in to_hdr.lower():
-            continue
-        for part in msg.walk():
-            if part.get_content_type() == 'text/html':
-                html = part.get_payload(decode=True).decode('utf-8', errors='ignore')
-                soup = BeautifulSoup(html, 'html.parser')
-                if button_text:
-                    for a in soup.find_all('a', href=True):
-                        if button_text in clean_text(a.get_text()):
-                            return a['href']
-                a = soup.find('a', href=True)
-                if a:
-                    return a['href']
-    return None
+    try:
+        mail.select("inbox")
+        _, data = mail.search(None, 'ALL')
+        mail_ids = data[0].split()[-35:]
+        for mail_id in reversed(mail_ids):
+            _, msg_data = mail.fetch(mail_id, "(RFC822)")
+            raw_email = msg_data[0][1]
+            msg = email.message_from_bytes(raw_email)
+
+            subject, encoding = decode_header(msg["Subject"])[0]
+            if isinstance(subject, bytes):
+                subject = subject.decode(encoding if encoding else "utf-8")
+
+            if any(keyword in subject for keyword in subject_keywords):
+                for part in msg.walk():
+                    if part.get_content_type() == "text/html":
+                        html_content = part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                        if account in html_content:
+                            soup = BeautifulSoup(html_content, 'html.parser')
+                            for a in soup.find_all('a', href=True):
+                                if button_text in a.get_text():
+                                    return a['href']
+        return "طلبك غير موجود."
+    except Exception as e:
+        return f"Error fetching emails: {e}"
 
 @retry_on_error
 def fetch_email_with_code(account, subject_keywords):
     retry_imap_connection()
-    mail.select('inbox')
-    _, data = mail.search(None, 'ALL')
-    for mid in reversed(data[0].split()[-20:]):
-        _, msg_data = mail.fetch(mid, '(RFC822)')
-        msg = email.message_from_bytes(msg_data[0][1])
-        subj, enc = decode_header(msg['Subject'])[0]
-        if isinstance(subj, bytes): subj = subj.decode(enc or 'utf-8')
-        if not any(k in subj for k in subject_keywords):
-            continue
-        to_hdr = msg.get('To', '')
-        if isinstance(to_hdr, bytes): to_hdr = to_hdr.decode(enc or 'utf-8', errors='ignore')
-        if account.lower() not in to_hdr.lower():
-            continue
-        for part in msg.walk():
-            if part.get_content_type() == 'text/html':
-                html = part.get_payload(decode=True).decode('utf-8', errors='ignore')
-                text = BeautifulSoup(html, 'html.parser').get_text()
-                match = re.search(r'\b\d{4}\b', text)
-                if match:
-                    return match.group(0)
-    return None
+    try:
+        mail.select("inbox")
+        _, data = mail.search(None, 'ALL')
+        mail_ids = data[0].split()[-35:]
+        for mail_id in reversed(mail_ids):
+            _, msg_data = mail.fetch(mail_id, "(RFC822)")
+            raw_email = msg_data[0][1]
+            msg = email.message_from_bytes(raw_email)
+
+            subject, encoding = decode_header(msg["Subject"])[0]
+            if isinstance(subject, bytes):
+                subject = subject.decode(encoding if encoding else "utf-8")
+
+            if any(keyword in subject for keyword in subject_keywords):
+                for part in msg.walk():
+                    if part.get_content_type() == "text/html":
+                        html_content = part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                        if account in html_content:
+                            code_match = re.search(r'\b\d{4}\b', BeautifulSoup(html_content, 'html.parser').get_text())
+                            if code_match:
+                                return code_match.group(0)
+        return "طلبك غير موجود."
+    except Exception as e:
+        return f"Error fetching emails: {e}"
 
 # ----------------------------------
 # مصادقة المدير
@@ -145,12 +161,17 @@ def index():
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
-        email_in = request.form.get('email')
-        password_in = request.form.get('password')
-        print(f'Login attempt - Email: {email_in}, Password: {password_in}')
-        print(f'Expected - Email: {ADMIN_EMAIL}, Password: {ADMIN_PASSWORD}')
-        if email_in == ADMIN_EMAIL and password_in == ADMIN_PASSWORD:
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        admin = admins_coll.find_one({
+            "username": username,
+            "password": password  # In production, use proper password hashing
+        })
+        
+        if admin:
             session['admin_logged_in'] = True
+            session['admin_id'] = str(admin['_id'])
             return redirect(url_for('admin_dashboard'))
         return render_template('admin_login.html', error='بيانات الدخول غير صحيحة')
     return render_template('admin_login.html')
@@ -158,7 +179,17 @@ def admin_login():
 @app.route('/admin/dashboard')
 @admin_required
 def admin_dashboard():
-    return render_template('admin_dashboard.html')
+    # Get statistics
+    total_users = users_coll.count_documents({})
+    active_subscriptions = subscriptions_coll.count_documents({
+        "expires_at": {"$gt": datetime.utcnow()}
+    })
+    recent_requests = list(requests_coll.find().sort("timestamp", -1).limit(10))
+    
+    return render_template('admin_dashboard.html',
+                         total_users=total_users,
+                         active_subscriptions=active_subscriptions,
+                         recent_requests=recent_requests)
 
 @app.route('/admin/logout')
 def admin_logout():
@@ -168,16 +199,48 @@ def admin_logout():
 @app.route('/api/generate-subscription-link', methods=['POST'])
 @admin_required
 def generate_subscription_link():
-    data = request.get_json()
-    user_id = data.get('user_id')
-    role = data.get('role')
-    if not user_id or role not in ['normal1', 'normal2']:
-        return jsonify(error='Invalid user_id or role'), 400
-    expiration = datetime.utcnow() + timedelta(days=30)
-    payload = {'user_id': user_id, 'role': role, 'exp': expiration}
-    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-    link = f"{request.host_url}user/{token}"
-    return jsonify(link=link), 200
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        role = data.get('role')
+        
+        if not user_id or role not in ['normal1', 'normal2']:
+            return jsonify(error='Invalid user_id or role'), 400
+        
+        # Create or update user
+        users_coll.update_one(
+            {"username": user_id},
+            {"$set": {"username": user_id}},
+            upsert=True
+        )
+        
+        # Create subscription
+        expires_at = datetime.utcnow() + timedelta(days=30)
+        subscriptions_coll.update_one(
+            {"user_id": user_id},
+            {
+                "$set": {
+                    "user_id": user_id,
+                    "role": role,
+                    "created_at": datetime.utcnow(),
+                    "expires_at": expires_at
+                }
+            },
+            upsert=True
+        )
+        
+        # Generate JWT token
+        payload = {
+            'user_id': user_id,
+            'role': role,
+            'exp': expires_at
+        }
+        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        link = f"{request.host_url}user/{token}"
+        
+        return jsonify(link=link), 200
+    except Exception as e:
+        return jsonify(error=str(e)), 500
 
 @app.route('/user/<token>')
 def user_page(token):
@@ -185,50 +248,165 @@ def user_page(token):
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = payload.get('user_id')
         role = payload.get('role')
-        if datetime.utcnow() > datetime.fromtimestamp(payload['exp']):
+        
+        # Check subscription
+        subscription = subscriptions_coll.find_one({
+            "user_id": user_id,
+            "expires_at": {"$gt": datetime.utcnow()}
+        })
+        
+        if not subscription:
             return render_template('expired.html')
+        
+        # Store user info in session
+        session['user_id'] = user_id
+        session['user_role'] = role
+        
         return render_template('user.html', user_id=user_id, role=role)
     except jwt.ExpiredSignatureError:
         return render_template('expired.html')
     except jwt.InvalidTokenError:
         return render_template('invalid.html')
 
-# Email-fetch APIs
+# Email-fetch APIs with logging
 @app.route('/api/fetch-residence-update-link', methods=['POST'])
+@admin_required
 def fetch_residence_update_link():
-    account = request.json.get('account')
-    if not account: return jsonify(error='Account is required'), 400
-    link = fetch_email_with_link(account, ['تحديث السكن'], 'نعم، أنا قدمت الطلب')
-    return jsonify(link=link), 200
+    try:
+        account = request.json.get('account')
+        if not account: return jsonify(error='Account is required'), 400
+        
+        link = fetch_email_with_link(account, ["تحديث السكن"], "نعم، أنا قدمت الطلب")
+        log_request(session['user_id'], 'residence_update_link', account, 'success' if link else 'not_found', link)
+        return jsonify(link=link), 200
+    except Exception as e:
+        log_request(session['user_id'], 'residence_update_link', account, 'error', str(e))
+        return jsonify(error=str(e)), 500
 
 @app.route('/api/fetch-residence-code', methods=['POST'])
+@admin_required
 def fetch_residence_code():
-    account = request.json.get('account')
-    if not account: return jsonify(error='Account is required'), 400
-    code = fetch_email_with_code(account, ['رمز الوصول المؤقت'])
-    return jsonify(code=code), 200
+    try:
+        account = request.json.get('account')
+        if not account: return jsonify(error='Account is required'), 400
+        
+        code = fetch_email_with_link(account, ["رمز الوصول المؤقت"], "الحصول على الرمز")
+        log_request(session['user_id'], 'residence_code', account, 'success' if code else 'not_found', code)
+        return jsonify(code=code), 200
+    except Exception as e:
+        log_request(session['user_id'], 'residence_code', account, 'error', str(e))
+        return jsonify(error=str(e)), 500
 
 @app.route('/api/fetch-password-reset-link', methods=['POST'])
+@admin_required
 def fetch_password_reset_link():
-    account = request.json.get('account')
-    if not account: return jsonify(error='Account is required'), 400
-    link = fetch_email_with_link(account, ['إعادة تعيين كلمة المرور'], 'إعادة تعيين كلمة المرور')
-    return jsonify(link=link), 200
+    try:
+        account = request.json.get('account')
+        if not account: return jsonify(error='Account is required'), 400
+        
+        link = fetch_email_with_link(account, ["إعادة تعيين كلمة المرور"], "إعادة تعيين كلمة المرور")
+        log_request(session['user_id'], 'password_reset_link', account, 'success' if link else 'not_found', link)
+        return jsonify(link=link), 200
+    except Exception as e:
+        log_request(session['user_id'], 'password_reset_link', account, 'error', str(e))
+        return jsonify(error=str(e)), 500
 
 @app.route('/api/fetch-login-code', methods=['POST'])
+@admin_required
 def fetch_login_code():
-    account = request.json.get('account')
-    if not account: return jsonify(error='Account is required'), 400
-    code = fetch_email_with_code(account, ['رمز تسجيل الدخول'])
-    return jsonify(code=code), 200
+    try:
+        account = request.json.get('account')
+        if not account: return jsonify(error='Account is required'), 400
+        
+        code = fetch_email_with_code(account, ["رمز تسجيل الدخول"])
+        log_request(session['user_id'], 'login_code', account, 'success' if code else 'not_found', code)
+        return jsonify(code=code), 200
+    except Exception as e:
+        log_request(session['user_id'], 'login_code', account, 'error', str(e))
+        return jsonify(error=str(e)), 500
 
 @app.route('/api/fetch-suspended-account-link', methods=['POST'])
+@admin_required
 def fetch_suspended_account_link():
-    account = request.json.get('account')
-    if not account: return jsonify(error='Account is required'), 400
-    link = fetch_email_with_link(account, ['عضويتك في Netflix معلّقة'], 'إضافة معلومات الدفع')
-    return jsonify(link=link), 200
+    try:
+        account = request.json.get('account')
+        if not account: return jsonify(error='Account is required'), 400
+        
+        link = fetch_email_with_link(account, ["عضويتك في Netflix معلّقة"], "إضافة معلومات الدفع")
+        log_request(session['user_id'], 'suspended_account_link', account, 'success' if link else 'not_found', link)
+        return jsonify(link=link), 200
+    except Exception as e:
+        log_request(session['user_id'], 'suspended_account_link', account, 'error', str(e))
+        return jsonify(error=str(e)), 500
+
+# ----------------------------------
+# Database Initialization
+# ----------------------------------
+def init_db():
+    # Create indexes
+    admins_coll.create_index("username", unique=True)
+    users_coll.create_index("username", unique=True)
+    requests_coll.create_index([("timestamp", -1)])
+    subscriptions_coll.create_index([("expires_at", 1)])
+
+def log_request(user_id, request_type, account, status, result=None):
+    requests_coll.insert_one({
+        "user_id": user_id,
+        "request_type": request_type,
+        "account": account,
+        "status": status,
+        "result": result,
+        "timestamp": datetime.utcnow()
+    })
+
+def check_subscription(user_id):
+    subscription = subscriptions_coll.find_one({
+        "user_id": user_id,
+        "expires_at": {"$gt": datetime.utcnow()}
+    })
+    return subscription is not None
+
+def create_subscription(user_id, role):
+    created_at = datetime.utcnow()
+    expires_at = created_at + timedelta(days=30)
+    subscriptions_coll.insert_one({
+        "user_id": user_id,
+        "role": role,
+        "created_at": created_at,
+        "expires_at": expires_at
+    })
+    return expires_at
+
+def delete_expired_users():
+    """حذف المستخدمين والاشتراكات منتهية الصلاحية"""
+    try:
+        # حذف الاشتراكات منتهية الصلاحية
+        expired_subscriptions = subscriptions_coll.find({
+            "expires_at": {"$lt": datetime.utcnow()}
+        })
+        
+        for subscription in expired_subscriptions:
+            # حذف المستخدم
+            users_coll.delete_one({"username": subscription["user_id"]})
+            # حذف الاشتراك
+            subscriptions_coll.delete_one({"_id": subscription["_id"]})
+            
+        print("✅ تم حذف المستخدمين منتهيي الصلاحية بنجاح")
+    except Exception as e:
+        print(f"❌ خطأ في حذف المستخدمين: {e}")
+
+# إضافة دالة لفحص وحذف المستخدمين منتهيي الصلاحية كل ساعة
+def schedule_cleanup():
+    while True:
+        delete_expired_users()
+        time.sleep(3600)  # انتظار ساعة واحدة
 
 if __name__ == '__main__':
+    init_db()
+    # بدء عملية التنظيف التلقائي في خيط منفصل
+    import threading
+    cleanup_thread = threading.Thread(target=schedule_cleanup, daemon=True)
+    cleanup_thread.start()
+    
     port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
