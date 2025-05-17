@@ -100,11 +100,16 @@ def fetch_email_with_link(account, subject_keywords, button_text):
     try:
         mail.select("inbox")
         _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-35:]
+        mail_ids = data[0].split()[-100:]  # Increased to last 100 emails
         for mail_id in reversed(mail_ids):
             _, msg_data = mail.fetch(mail_id, "(RFC822)")
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
+
+            # التحقق من عنوان البريد الإلكتروني
+            to_address = msg.get('To', '')
+            if account.lower() not in to_address.lower():
+                continue
 
             subject, encoding = decode_header(msg["Subject"])[0]
             if isinstance(subject, bytes):
@@ -130,11 +135,16 @@ def fetch_email_with_code(account, subject_keywords):
     try:
         mail.select("inbox")
         _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-35:]
+        mail_ids = data[0].split()[-100:]  # Increased to last 100 emails
         for mail_id in reversed(mail_ids):
             _, msg_data = mail.fetch(mail_id, "(RFC822)")
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
+
+            # التحقق من عنوان البريد الإلكتروني
+            to_address = msg.get('To', '')
+            if account.lower() not in to_address.lower():
+                continue
 
             subject, encoding = decode_header(msg["Subject"])[0]
             if isinstance(subject, bytes):
