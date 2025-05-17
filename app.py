@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import time
 import re
 import imaplib
@@ -56,6 +56,16 @@ def clean_text(text):
 
 def retry_imap_connection():
     global mail
+    try:
+        if 'mail' in globals() and mail:
+            try:
+                mail.noop()  # Check if connection is still alive
+                return
+            except:
+                pass
+    except:
+        pass
+    
     for attempt in range(3):
         try:
             mail = imaplib.IMAP4_SSL(IMAP_SERVER)
@@ -66,6 +76,7 @@ def retry_imap_connection():
             print(f"❌ فشل الاتصال (المحاولة {attempt + 1}): {e}")
             time.sleep(2)
     print("❌ فشل إعادة الاتصال بعد عدة محاولات.")
+    raise Exception("فشل الاتصال بخادم البريد الإلكتروني")
 
 def retry_on_error(func):
     """ديكورتر لإعادة المحاولة عند حدوث خطأ في جلب الرسائل."""
@@ -103,13 +114,14 @@ def fetch_email_with_link(account, subject_keywords, button_text):
                 for part in msg.walk():
                     if part.get_content_type() == "text/html":
                         html_content = part.get_payload(decode=True).decode('utf-8', errors='ignore')
-                        if account in html_content:
+                        if account.lower() in html_content.lower():  # Case-insensitive search
                             soup = BeautifulSoup(html_content, 'html.parser')
                             for a in soup.find_all('a', href=True):
                                 if button_text in a.get_text():
                                     return a['href']
         return "طلبك غير موجود."
     except Exception as e:
+        print(f"Error in fetch_email_with_link: {str(e)}")  # Added logging
         return f"Error fetching emails: {e}"
 
 @retry_on_error
@@ -132,12 +144,13 @@ def fetch_email_with_code(account, subject_keywords):
                 for part in msg.walk():
                     if part.get_content_type() == "text/html":
                         html_content = part.get_payload(decode=True).decode('utf-8', errors='ignore')
-                        if account in html_content:
+                        if account.lower() in html_content.lower():  # Case-insensitive search
                             code_match = re.search(r'\b\d{4}\b', BeautifulSoup(html_content, 'html.parser').get_text())
                             if code_match:
                                 return code_match.group(0)
         return "طلبك غير موجود."
     except Exception as e:
+        print(f"Error in fetch_email_with_code: {str(e)}")  # Added logging
         return f"Error fetching emails: {e}"
 
 # ----------------------------------
@@ -182,7 +195,7 @@ def admin_dashboard():
     # Get statistics
     total_users = users_coll.count_documents({})
     active_subscriptions = subscriptions_coll.count_documents({
-        "expires_at": {"$gt": datetime.utcnow()}
+        "expires_at": {"$gt": datetime.now(UTC)}
     })
     recent_requests = list(requests_coll.find().sort("timestamp", -1).limit(10))
     
@@ -215,14 +228,14 @@ def generate_subscription_link():
         )
         
         # Create subscription
-        expires_at = datetime.utcnow() + timedelta(days=30)
+        expires_at = datetime.now(UTC) + timedelta(days=30)
         subscriptions_coll.update_one(
             {"user_id": user_id},
             {
                 "$set": {
                     "user_id": user_id,
                     "role": role,
-                    "created_at": datetime.utcnow(),
+                    "created_at": datetime.now(UTC),
                     "expires_at": expires_at
                 }
             },
@@ -252,7 +265,7 @@ def user_page(token):
         # Check subscription
         subscription = subscriptions_coll.find_one({
             "user_id": user_id,
-            "expires_at": {"$gt": datetime.utcnow()}
+            "expires_at": {"$gt": datetime.now(UTC)}
         })
         
         if not subscription:
@@ -277,10 +290,10 @@ def fetch_residence_update_link():
         if not account: return jsonify(error='Account is required'), 400
         
         link = fetch_email_with_link(account, ["تحديث السكن"], "نعم، أنا قدمت الطلب")
-        log_request(session['user_id'], 'residence_update_link', account, 'success' if link else 'not_found', link)
+        log_request(session.get('admin_id', 'unknown'), 'residence_update_link', account, 'success' if link else 'not_found', link)
         return jsonify(link=link), 200
     except Exception as e:
-        log_request(session['user_id'], 'residence_update_link', account, 'error', str(e))
+        log_request(session.get('admin_id', 'unknown'), 'residence_update_link', account, 'error', str(e))
         return jsonify(error=str(e)), 500
 
 @app.route('/api/fetch-residence-code', methods=['POST'])
@@ -291,10 +304,10 @@ def fetch_residence_code():
         if not account: return jsonify(error='Account is required'), 400
         
         code = fetch_email_with_link(account, ["رمز الوصول المؤقت"], "الحصول على الرمز")
-        log_request(session['user_id'], 'residence_code', account, 'success' if code else 'not_found', code)
+        log_request(session.get('admin_id', 'unknown'), 'residence_code', account, 'success' if code else 'not_found', code)
         return jsonify(code=code), 200
     except Exception as e:
-        log_request(session['user_id'], 'residence_code', account, 'error', str(e))
+        log_request(session.get('admin_id', 'unknown'), 'residence_code', account, 'error', str(e))
         return jsonify(error=str(e)), 500
 
 @app.route('/api/fetch-password-reset-link', methods=['POST'])
@@ -305,10 +318,10 @@ def fetch_password_reset_link():
         if not account: return jsonify(error='Account is required'), 400
         
         link = fetch_email_with_link(account, ["إعادة تعيين كلمة المرور"], "إعادة تعيين كلمة المرور")
-        log_request(session['user_id'], 'password_reset_link', account, 'success' if link else 'not_found', link)
+        log_request(session.get('admin_id', 'unknown'), 'password_reset_link', account, 'success' if link else 'not_found', link)
         return jsonify(link=link), 200
     except Exception as e:
-        log_request(session['user_id'], 'password_reset_link', account, 'error', str(e))
+        log_request(session.get('admin_id', 'unknown'), 'password_reset_link', account, 'error', str(e))
         return jsonify(error=str(e)), 500
 
 @app.route('/api/fetch-login-code', methods=['POST'])
@@ -319,10 +332,10 @@ def fetch_login_code():
         if not account: return jsonify(error='Account is required'), 400
         
         code = fetch_email_with_code(account, ["رمز تسجيل الدخول"])
-        log_request(session['user_id'], 'login_code', account, 'success' if code else 'not_found', code)
+        log_request(session.get('admin_id', 'unknown'), 'login_code', account, 'success' if code else 'not_found', code)
         return jsonify(code=code), 200
     except Exception as e:
-        log_request(session['user_id'], 'login_code', account, 'error', str(e))
+        log_request(session.get('admin_id', 'unknown'), 'login_code', account, 'error', str(e))
         return jsonify(error=str(e)), 500
 
 @app.route('/api/fetch-suspended-account-link', methods=['POST'])
@@ -333,10 +346,10 @@ def fetch_suspended_account_link():
         if not account: return jsonify(error='Account is required'), 400
         
         link = fetch_email_with_link(account, ["عضويتك في Netflix معلّقة"], "إضافة معلومات الدفع")
-        log_request(session['user_id'], 'suspended_account_link', account, 'success' if link else 'not_found', link)
+        log_request(session.get('admin_id', 'unknown'), 'suspended_account_link', account, 'success' if link else 'not_found', link)
         return jsonify(link=link), 200
     except Exception as e:
-        log_request(session['user_id'], 'suspended_account_link', account, 'error', str(e))
+        log_request(session.get('admin_id', 'unknown'), 'suspended_account_link', account, 'error', str(e))
         return jsonify(error=str(e)), 500
 
 # ----------------------------------
@@ -349,25 +362,25 @@ def init_db():
     requests_coll.create_index([("timestamp", -1)])
     subscriptions_coll.create_index([("expires_at", 1)])
 
-def log_request(user_id, request_type, account, status, result=None):
+def log_request(admin_id, request_type, account, status, result=None):
     requests_coll.insert_one({
-        "user_id": user_id,
+        "admin_id": admin_id,
         "request_type": request_type,
         "account": account,
         "status": status,
         "result": result,
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.now(UTC)
     })
 
 def check_subscription(user_id):
     subscription = subscriptions_coll.find_one({
         "user_id": user_id,
-        "expires_at": {"$gt": datetime.utcnow()}
+        "expires_at": {"$gt": datetime.now(UTC)}
     })
     return subscription is not None
 
 def create_subscription(user_id, role):
-    created_at = datetime.utcnow()
+    created_at = datetime.now(UTC)
     expires_at = created_at + timedelta(days=30)
     subscriptions_coll.insert_one({
         "user_id": user_id,
@@ -382,7 +395,7 @@ def delete_expired_users():
     try:
         # حذف الاشتراكات منتهية الصلاحية
         expired_subscriptions = subscriptions_coll.find({
-            "expires_at": {"$lt": datetime.utcnow()}
+            "expires_at": {"$lt": datetime.now(UTC)}
         })
         
         for subscription in expired_subscriptions:
