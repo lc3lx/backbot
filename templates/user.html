@@ -71,23 +71,38 @@ content %}
 />
 <script>
   function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-      const copyBtn = document.getElementById("copyBtn");
-      copyBtn.innerHTML = '<i class="fas fa-check"></i> تم النسخ';
-      setTimeout(() => {
-        copyBtn.innerHTML = '<i class="fas fa-copy"></i> نسخ';
-      }, 2000);
-    });
+    try {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          const copyBtn = document.getElementById("copyBtn");
+          if (copyBtn) {
+            copyBtn.innerHTML = '<i class="fas fa-check"></i> تم النسخ';
+            setTimeout(() => {
+              copyBtn.innerHTML = '<i class="fas fa-copy"></i> نسخ';
+            }, 2000);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to copy:", err);
+          alert("فشل نسخ النص. يرجى المحاولة مرة أخرى.");
+        });
+    } catch (err) {
+      console.error("Copy error:", err);
+      alert("فشل نسخ النص. يرجى المحاولة مرة أخرى.");
+    }
   }
 
   async function makeRequest(endpoint, buttonText, inputId) {
-    const account = document.getElementById(inputId).value.trim();
+    const account = document.getElementById(inputId)?.value?.trim();
     const resultDiv = document.getElementById("result");
+
+    if (!resultDiv) return;
 
     if (!account) {
       resultDiv.innerHTML = `
-        <div class="alert alert-danger mb-0">
-          <i class="fas fa-exclamation-circle"></i> الرجاء إدخال الحساب
+        <div class="alert alert-warning mb-0">
+          <i class="fas fa-exclamation-triangle"></i> الرجاء إدخال الحساب
         </div>
       `;
       return;
@@ -105,13 +120,19 @@ content %}
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
         body: JSON.stringify({
           account: account,
         }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        throw new Error("فشل في قراءة البيانات من الخادم");
+      }
 
       if (!response.ok) {
         throw new Error(data.error || "حدث خطأ في الخادم");
@@ -131,6 +152,8 @@ content %}
         content = data.link;
       } else if (data.code) {
         content = data.code;
+      } else if (data.result) {
+        content = data.result;
       }
 
       if (!content) {
@@ -142,18 +165,30 @@ content %}
         return;
       }
 
+      // Escape HTML to prevent XSS
+      const escapedContent = content.replace(/[&<>"']/g, function (m) {
+        const map = {
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        };
+        return map[m];
+      });
+
       resultDiv.innerHTML = `
         <div class="alert alert-success mb-0">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <span><i class="fas fa-check-circle"></i> تم جلب البيانات بنجاح</span>
-            <button id="copyBtn" class="btn btn-sm btn-outline-success" onclick="copyToClipboard('${content}')">
+            <button id="copyBtn" class="btn btn-sm btn-outline-success" onclick="copyToClipboard('${escapedContent}')">
               <i class="fas fa-copy"></i> نسخ
             </button>
           </div>
-          <div class="form-control bg-light">${content}</div>
+          <div class="form-control bg-light">${escapedContent}</div>
           ${
             data.link
-              ? `<a href="${content}" class="btn btn-success w-100 mt-2" target="_blank">${buttonText}</a>`
+              ? `<a href="${escapedContent}" class="btn btn-success w-100 mt-2" target="_blank" rel="noopener noreferrer">${buttonText}</a>`
               : ""
           }
         </div>
