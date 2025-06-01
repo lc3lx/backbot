@@ -32,16 +32,12 @@ content %}
           <button onclick="fetchResidenceUpdateLink()" class="btn btn-primary">
             طلب رابط تحديث السكن
           </button>
+
+          {% if role == 'normal2' %}
           <button onclick="fetchPasswordResetLink()" class="btn btn-primary">
             طلب استعادة كلمة المرور
           </button>
-          {% if role == 'normal2' %}
-          <button onclick="fetchLoginCode()" class="btn btn-primary">
-            طلب رمز تسجيل الدخول
-          </button>
-          <button onclick="fetchSuspendedAccountLink()" class="btn btn-primary">
-            طلب رابط عضويتك معلقة
-          </button>
+
           {% endif %}
         </div>
       </div>
