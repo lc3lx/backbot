@@ -374,146 +374,171 @@ def user_page(token):
 @admin_required
 def fetch_residence_update_link():
     if request.method == 'OPTIONS':
-        return '', 200
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,Origin,X-Requested-With')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        response.headers.add('Access-Control-Max-Age', '3600')
+        return response
     try:
         if not request.is_json:
-            return jsonify(error='Content-Type must be application/json'), 400
+            return jsonify(error='Content-Type must be application/json'), 400, {'Content-Type': 'application/json'}
             
         data = request.get_json()
         if not data:
-            return jsonify(error='No data provided'), 400
+            return jsonify(error='No data provided'), 400, {'Content-Type': 'application/json'}
             
         account = data.get('account')
         if not account:
-            return jsonify(error='Account is required'), 400
+            return jsonify(error='Account is required'), 400, {'Content-Type': 'application/json'}
             
         account = account.strip()
         if not account:
-            return jsonify(error='Account cannot be empty'), 400
+            return jsonify(error='Account cannot be empty'), 400, {'Content-Type': 'application/json'}
         
         link = fetch_email_with_link(account, ["تحديث السكن"], "نعم، أنا قدمت الطلب")
         log_request(session.get('admin_id', 'unknown'), 'residence_update_link', account, 'success' if link else 'not_found', link)
-        return jsonify(link=link), 200
+        return jsonify(link=link), 200, {'Content-Type': 'application/json'}
     except Exception as e:
         print(f"Error in fetch_residence_update_link: {str(e)}")
         log_request(session.get('admin_id', 'unknown'), 'residence_update_link', account, 'error', str(e))
-        return jsonify(error=str(e)), 500
+        return jsonify(error=str(e)), 500, {'Content-Type': 'application/json'}
 
 @app.route('/api/fetch-residence-code', methods=['POST', 'OPTIONS'])
 @admin_required
 def fetch_residence_code():
     if request.method == 'OPTIONS':
-        return '', 200
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,Origin,X-Requested-With')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        response.headers.add('Access-Control-Max-Age', '3600')
+        return response
     try:
         if not request.is_json:
-            return jsonify(error='Content-Type must be application/json'), 400
+            return jsonify(error='Content-Type must be application/json'), 400, {'Content-Type': 'application/json'}
             
         data = request.get_json()
         if not data:
-            return jsonify(error='No data provided'), 400
+            return jsonify(error='No data provided'), 400, {'Content-Type': 'application/json'}
             
         account = data.get('account')
         if not account:
-            return jsonify(error='Account is required'), 400
+            return jsonify(error='Account is required'), 400, {'Content-Type': 'application/json'}
             
         account = account.strip()
         if not account:
-            return jsonify(error='Account cannot be empty'), 400
+            return jsonify(error='Account cannot be empty'), 400, {'Content-Type': 'application/json'}
         
         code = fetch_email_with_link(account, ["رمز الوصول المؤقت"], "الحصول على الرمز")
         log_request(session.get('admin_id', 'unknown'), 'residence_code', account, 'success' if code else 'not_found', code)
-        return jsonify(code=code), 200
+        return jsonify(code=code), 200, {'Content-Type': 'application/json'}
     except Exception as e:
         print(f"Error in fetch_residence_code: {str(e)}")
         log_request(session.get('admin_id', 'unknown'), 'residence_code', account, 'error', str(e))
-        return jsonify(error=str(e)), 500
+        return jsonify(error=str(e)), 500, {'Content-Type': 'application/json'}
 
 @app.route('/api/fetch-password-reset-link', methods=['POST', 'OPTIONS'])
 @admin_required
 def fetch_password_reset_link():
     if request.method == 'OPTIONS':
-        return '', 200
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,Origin,X-Requested-With')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        response.headers.add('Access-Control-Max-Age', '3600')
+        return response
     try:
         if not request.is_json:
-            return jsonify(error='Content-Type must be application/json'), 400
+            return jsonify(error='Content-Type must be application/json'), 400, {'Content-Type': 'application/json'}
             
         data = request.get_json()
         if not data:
-            return jsonify(error='No data provided'), 400
+            return jsonify(error='No data provided'), 400, {'Content-Type': 'application/json'}
             
         account = data.get('account')
         if not account:
-            return jsonify(error='Account is required'), 400
+            return jsonify(error='Account is required'), 400, {'Content-Type': 'application/json'}
             
         account = account.strip()
         if not account:
-            return jsonify(error='Account cannot be empty'), 400
+            return jsonify(error='Account cannot be empty'), 400, {'Content-Type': 'application/json'}
         
         link = fetch_email_with_link(account, ["إعادة تعيين كلمة المرور"], "إعادة تعيين كلمة المرور")
         log_request(session.get('admin_id', 'unknown'), 'password_reset_link', account, 'success' if link else 'not_found', link)
-        return jsonify(link=link), 200
+        return jsonify(link=link), 200, {'Content-Type': 'application/json'}
     except Exception as e:
         print(f"Error in fetch_password_reset_link: {str(e)}")
         log_request(session.get('admin_id', 'unknown'), 'password_reset_link', account, 'error', str(e))
-        return jsonify(error=str(e)), 500
+        return jsonify(error=str(e)), 500, {'Content-Type': 'application/json'}
 
 @app.route('/api/fetch-login-code', methods=['POST', 'OPTIONS'])
 @admin_required
 def fetch_login_code():
     if request.method == 'OPTIONS':
-        return '', 200
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,Origin,X-Requested-With')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        response.headers.add('Access-Control-Max-Age', '3600')
+        return response
     try:
         if not request.is_json:
-            return jsonify(error='Content-Type must be application/json'), 400
+            return jsonify(error='Content-Type must be application/json'), 400, {'Content-Type': 'application/json'}
             
         data = request.get_json()
         if not data:
-            return jsonify(error='No data provided'), 400
+            return jsonify(error='No data provided'), 400, {'Content-Type': 'application/json'}
             
         account = data.get('account')
         if not account:
-            return jsonify(error='Account is required'), 400
+            return jsonify(error='Account is required'), 400, {'Content-Type': 'application/json'}
             
         account = account.strip()
         if not account:
-            return jsonify(error='Account cannot be empty'), 400
+            return jsonify(error='Account cannot be empty'), 400, {'Content-Type': 'application/json'}
         
         code = fetch_email_with_code(account, ["رمز تسجيل الدخول"])
         log_request(session.get('admin_id', 'unknown'), 'login_code', account, 'success' if code else 'not_found', code)
-        return jsonify(code=code), 200
+        return jsonify(code=code), 200, {'Content-Type': 'application/json'}
     except Exception as e:
         print(f"Error in fetch_login_code: {str(e)}")
         log_request(session.get('admin_id', 'unknown'), 'login_code', account, 'error', str(e))
-        return jsonify(error=str(e)), 500
+        return jsonify(error=str(e)), 500, {'Content-Type': 'application/json'}
 
 @app.route('/api/fetch-suspended-account-link', methods=['POST', 'OPTIONS'])
 @admin_required
 def fetch_suspended_account_link():
     if request.method == 'OPTIONS':
-        return '', 200
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,Origin,X-Requested-With')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        response.headers.add('Access-Control-Max-Age', '3600')
+        return response
     try:
         if not request.is_json:
-            return jsonify(error='Content-Type must be application/json'), 400
+            return jsonify(error='Content-Type must be application/json'), 400, {'Content-Type': 'application/json'}
             
         data = request.get_json()
         if not data:
-            return jsonify(error='No data provided'), 400
+            return jsonify(error='No data provided'), 400, {'Content-Type': 'application/json'}
             
         account = data.get('account')
         if not account:
-            return jsonify(error='Account is required'), 400
+            return jsonify(error='Account is required'), 400, {'Content-Type': 'application/json'}
             
         account = account.strip()
         if not account:
-            return jsonify(error='Account cannot be empty'), 400
+            return jsonify(error='Account cannot be empty'), 400, {'Content-Type': 'application/json'}
         
         link = fetch_email_with_link(account, ["عضويتك في Netflix معلّقة"], "إضافة معلومات الدفع")
         log_request(session.get('admin_id', 'unknown'), 'suspended_account_link', account, 'success' if link else 'not_found', link)
-        return jsonify(link=link), 200
+        return jsonify(link=link), 200, {'Content-Type': 'application/json'}
     except Exception as e:
         print(f"Error in fetch_suspended_account_link: {str(e)}")
         log_request(session.get('admin_id', 'unknown'), 'suspended_account_link', account, 'error', str(e))
-        return jsonify(error=str(e)), 500
+        return jsonify(error=str(e)), 500, {'Content-Type': 'application/json'}
 
 # ----------------------------------
 # Database Initialization

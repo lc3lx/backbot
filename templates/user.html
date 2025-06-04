@@ -126,11 +126,16 @@ content %}
       });
 
       let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        console.error("JSON Parse Error:", e);
-        throw new Error("فشل في قراءة البيانات من الخادم");
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        try {
+          data = await response.json();
+        } catch (e) {
+          console.error("JSON Parse Error:", e);
+          throw new Error("فشل في قراءة البيانات من الخادم");
+        }
+      } else {
+        throw new Error("استجابة غير صالحة من الخادم");
       }
 
       if (!response.ok) {
