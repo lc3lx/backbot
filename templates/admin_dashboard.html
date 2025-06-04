@@ -191,7 +191,11 @@ content %}
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          Origin: window.location.origin,
+          "X-Requested-With": "XMLHttpRequest",
         },
+        credentials: "include",
+        mode: "cors",
         body: JSON.stringify({ account: email }),
       });
 

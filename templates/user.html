@@ -32,10 +32,15 @@ content %}
           <button onclick="fetchResidenceUpdateLink()" class="btn btn-primary">
             طلب رابط تحديث السكن
           </button>
-       
-          {% if role == 'normal2' %}
-            <button onclick="fetchPasswordResetLink()" class="btn btn-primary">
+          <button onclick="fetchPasswordResetLink()" class="btn btn-primary">
             طلب استعادة كلمة المرور
+          </button>
+          {% if role == 'normal2' %}
+          <button onclick="fetchLoginCode()" class="btn btn-primary">
+            طلب رمز تسجيل الدخول
+          </button>
+          <button onclick="fetchSuspendedAccountLink()" class="btn btn-primary">
+            طلب رابط عضويتك معلقة
           </button>
           {% endif %}
         </div>
@@ -112,7 +117,11 @@ content %}
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          Origin: window.location.origin,
+          "X-Requested-With": "XMLHttpRequest",
         },
+        credentials: "include",
+        mode: "cors",
         body: JSON.stringify({ account: account }),
       });
 
