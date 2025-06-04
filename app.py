@@ -99,8 +99,17 @@ def fetch_email_with_link(account, subject_keywords, button_text):
     retry_imap_connection()
     try:
         mail.select("inbox")
-        _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-100:]  # Increased to last 100 emails
+        
+        # First try to search in unread emails
+        _, data = mail.search(None, 'UNSEEN')
+        mail_ids = data[0].split()
+        
+        # If no unread emails found, search in all emails
+        if not mail_ids:
+            _, data = mail.search(None, 'ALL')
+            mail_ids = data[0].split()[-17:]  # Last 100 emails
+        
+        result = "طلبك غير موجود."
         for mail_id in reversed(mail_ids):
             _, msg_data = mail.fetch(mail_id, "(RFC822)")
             raw_email = msg_data[0][1]
@@ -123,10 +132,22 @@ def fetch_email_with_link(account, subject_keywords, button_text):
                             soup = BeautifulSoup(html_content, 'html.parser')
                             for a in soup.find_all('a', href=True):
                                 if button_text in a.get_text():
-                                    return a['href']
-        return "طلبك غير موجود."
+                                    result = a['href']
+                                    break
+            if result != "طلبك غير موجود.":
+                break
+                
+        # Close the connection
+        mail.close()
+        mail.logout()
+        return result
     except Exception as e:
         print(f"Error in fetch_email_with_link: {str(e)}")  # Added logging
+        try:
+            mail.close()
+            mail.logout()
+        except:
+            pass
         return f"Error fetching emails: {e}"
 
 @retry_on_error
@@ -134,8 +155,17 @@ def fetch_email_with_code(account, subject_keywords):
     retry_imap_connection()
     try:
         mail.select("inbox")
-        _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-100:]  # Increased to last 100 emails
+        
+        # First try to search in unread emails
+        _, data = mail.search(None, 'UNSEEN')
+        mail_ids = data[0].split()
+        
+        # If no unread emails found, search in all emails
+        if not mail_ids:
+            _, data = mail.search(None, 'ALL')
+            mail_ids = data[0].split()[-17:]  # Last 100 emails
+        
+        result = "طلبك غير موجود."
         for mail_id in reversed(mail_ids):
             _, msg_data = mail.fetch(mail_id, "(RFC822)")
             raw_email = msg_data[0][1]
@@ -157,10 +187,22 @@ def fetch_email_with_code(account, subject_keywords):
                         if account.lower() in html_content.lower():  # Case-insensitive search
                             code_match = re.search(r'\b\d{4}\b', BeautifulSoup(html_content, 'html.parser').get_text())
                             if code_match:
-                                return code_match.group(0)
-        return "طلبك غير موجود."
+                                result = code_match.group(0)
+                                break
+            if result != "طلبك غير موجود.":
+                break
+                
+        # Close the connection
+        mail.close()
+        mail.logout()
+        return result
     except Exception as e:
         print(f"Error in fetch_email_with_code: {str(e)}")  # Added logging
+        try:
+            mail.close()
+            mail.logout()
+        except:
+            pass
         return f"Error fetching emails: {e}"
 
 # ----------------------------------
