@@ -32,12 +32,16 @@ content %}
           <button onclick="fetchResidenceUpdateLink()" class="btn btn-primary">
             طلب رابط تحديث السكن
           </button>
-
-          {% if role == 'normal2' %}
           <button onclick="fetchPasswordResetLink()" class="btn btn-primary">
             طلب استعادة كلمة المرور
           </button>
-
+          {% if role == 'normal2' %}
+          <button onclick="fetchLoginCode()" class="btn btn-primary">
+            طلب رمز تسجيل الدخول
+          </button>
+          <button onclick="fetchSuspendedAccountLink()" class="btn btn-primary">
+            طلب رابط عضويتك معلقة
+          </button>
           {% endif %}
         </div>
       </div>
@@ -91,6 +95,16 @@ content %}
         return;
       }
 
+      account = account.trim();
+      if (!account) {
+        resultDiv.innerHTML = `
+          <div class="alert alert-warning mb-0">
+            <i class="fas fa-exclamation-triangle"></i> الرجاء إدخال حساب صحيح
+          </div>
+        `;
+        return;
+      }
+
       // Show loading state
       resultDiv.innerHTML = `
         <div class="alert alert-info">
@@ -111,6 +125,7 @@ content %}
       try {
         data = await response.json();
       } catch (e) {
+        console.error("JSON Parse Error:", e);
         throw new Error("فشل في قراءة البيانات من الخادم");
       }
 

@@ -100,7 +100,7 @@ def fetch_email_with_link(account, subject_keywords, button_text):
     try:
         mail.select("inbox")
         _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-20:]  # Increased to last 100 emails
+        mail_ids = data[0].split()[-100:]  # Increased to last 100 emails
         for mail_id in reversed(mail_ids):
             _, msg_data = mail.fetch(mail_id, "(RFC822)")
             raw_email = msg_data[0][1]
@@ -135,7 +135,7 @@ def fetch_email_with_code(account, subject_keywords):
     try:
         mail.select("inbox")
         _, data = mail.search(None, 'ALL')
-        mail_ids = data[0].split()[-20:]  # Increased to last 100 emails
+        mail_ids = data[0].split()[-100:]  # Increased to last 100 emails
         for mail_id in reversed(mail_ids):
             _, msg_data = mail.fetch(mail_id, "(RFC822)")
             raw_email = msg_data[0][1]
@@ -296,13 +296,26 @@ def user_page(token):
 @admin_required
 def fetch_residence_update_link():
     try:
-        account = request.json.get('account')
-        if not account: return jsonify(error='Account is required'), 400
+        if not request.is_json:
+            return jsonify(error='Content-Type must be application/json'), 400
+            
+        data = request.get_json()
+        if not data:
+            return jsonify(error='No data provided'), 400
+            
+        account = data.get('account')
+        if not account:
+            return jsonify(error='Account is required'), 400
+            
+        account = account.strip()
+        if not account:
+            return jsonify(error='Account cannot be empty'), 400
         
         link = fetch_email_with_link(account, ["تحديث السكن"], "نعم، أنا قدمت الطلب")
         log_request(session.get('admin_id', 'unknown'), 'residence_update_link', account, 'success' if link else 'not_found', link)
         return jsonify(link=link), 200
     except Exception as e:
+        print(f"Error in fetch_residence_update_link: {str(e)}")
         log_request(session.get('admin_id', 'unknown'), 'residence_update_link', account, 'error', str(e))
         return jsonify(error=str(e)), 500
 
@@ -310,13 +323,26 @@ def fetch_residence_update_link():
 @admin_required
 def fetch_residence_code():
     try:
-        account = request.json.get('account')
-        if not account: return jsonify(error='Account is required'), 400
+        if not request.is_json:
+            return jsonify(error='Content-Type must be application/json'), 400
+            
+        data = request.get_json()
+        if not data:
+            return jsonify(error='No data provided'), 400
+            
+        account = data.get('account')
+        if not account:
+            return jsonify(error='Account is required'), 400
+            
+        account = account.strip()
+        if not account:
+            return jsonify(error='Account cannot be empty'), 400
         
         code = fetch_email_with_link(account, ["رمز الوصول المؤقت"], "الحصول على الرمز")
         log_request(session.get('admin_id', 'unknown'), 'residence_code', account, 'success' if code else 'not_found', code)
         return jsonify(code=code), 200
     except Exception as e:
+        print(f"Error in fetch_residence_code: {str(e)}")
         log_request(session.get('admin_id', 'unknown'), 'residence_code', account, 'error', str(e))
         return jsonify(error=str(e)), 500
 
@@ -324,13 +350,26 @@ def fetch_residence_code():
 @admin_required
 def fetch_password_reset_link():
     try:
-        account = request.json.get('account')
-        if not account: return jsonify(error='Account is required'), 400
+        if not request.is_json:
+            return jsonify(error='Content-Type must be application/json'), 400
+            
+        data = request.get_json()
+        if not data:
+            return jsonify(error='No data provided'), 400
+            
+        account = data.get('account')
+        if not account:
+            return jsonify(error='Account is required'), 400
+            
+        account = account.strip()
+        if not account:
+            return jsonify(error='Account cannot be empty'), 400
         
         link = fetch_email_with_link(account, ["إعادة تعيين كلمة المرور"], "إعادة تعيين كلمة المرور")
         log_request(session.get('admin_id', 'unknown'), 'password_reset_link', account, 'success' if link else 'not_found', link)
         return jsonify(link=link), 200
     except Exception as e:
+        print(f"Error in fetch_password_reset_link: {str(e)}")
         log_request(session.get('admin_id', 'unknown'), 'password_reset_link', account, 'error', str(e))
         return jsonify(error=str(e)), 500
 
@@ -338,13 +377,26 @@ def fetch_password_reset_link():
 @admin_required
 def fetch_login_code():
     try:
-        account = request.json.get('account')
-        if not account: return jsonify(error='Account is required'), 400
+        if not request.is_json:
+            return jsonify(error='Content-Type must be application/json'), 400
+            
+        data = request.get_json()
+        if not data:
+            return jsonify(error='No data provided'), 400
+            
+        account = data.get('account')
+        if not account:
+            return jsonify(error='Account is required'), 400
+            
+        account = account.strip()
+        if not account:
+            return jsonify(error='Account cannot be empty'), 400
         
         code = fetch_email_with_code(account, ["رمز تسجيل الدخول"])
         log_request(session.get('admin_id', 'unknown'), 'login_code', account, 'success' if code else 'not_found', code)
         return jsonify(code=code), 200
     except Exception as e:
+        print(f"Error in fetch_login_code: {str(e)}")
         log_request(session.get('admin_id', 'unknown'), 'login_code', account, 'error', str(e))
         return jsonify(error=str(e)), 500
 
@@ -352,13 +404,26 @@ def fetch_login_code():
 @admin_required
 def fetch_suspended_account_link():
     try:
-        account = request.json.get('account')
-        if not account: return jsonify(error='Account is required'), 400
+        if not request.is_json:
+            return jsonify(error='Content-Type must be application/json'), 400
+            
+        data = request.get_json()
+        if not data:
+            return jsonify(error='No data provided'), 400
+            
+        account = data.get('account')
+        if not account:
+            return jsonify(error='Account is required'), 400
+            
+        account = account.strip()
+        if not account:
+            return jsonify(error='Account cannot be empty'), 400
         
         link = fetch_email_with_link(account, ["عضويتك في Netflix معلّقة"], "إضافة معلومات الدفع")
         log_request(session.get('admin_id', 'unknown'), 'suspended_account_link', account, 'success' if link else 'not_found', link)
         return jsonify(link=link), 200
     except Exception as e:
+        print(f"Error in fetch_suspended_account_link: {str(e)}")
         log_request(session.get('admin_id', 'unknown'), 'suspended_account_link', account, 'error', str(e))
         return jsonify(error=str(e)), 500
 
