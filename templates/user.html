@@ -32,10 +32,15 @@ content %}
           <button onclick="fetchResidenceUpdateLink()" class="btn btn-primary">
             طلب رابط تحديث السكن
           </button>
-        
-          {% if role == 'normal2' %}
-           <button onclick="fetchPasswordResetLink()" class="btn btn-primary">
+          <button onclick="fetchPasswordResetLink()" class="btn btn-primary">
             طلب استعادة كلمة المرور
+          </button>
+          {% if role == 'normal2' %}
+          <button onclick="fetchLoginCode()" class="btn btn-primary">
+            طلب رمز تسجيل الدخول
+          </button>
+          <button onclick="fetchSuspendedAccountLink()" class="btn btn-primary">
+            طلب رابط عضويتك معلقة
           </button>
           {% endif %}
         </div>
@@ -115,22 +120,22 @@ content %}
           Origin: window.location.origin,
           "X-Requested-With": "XMLHttpRequest",
         },
-        credentials: "include",
-        mode: "cors",
+        credentials: "same-origin",
         body: JSON.stringify({ account: account }),
       });
 
       let data;
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
+      try {
+        const text = await response.text();
         try {
-          data = await response.json();
+          data = JSON.parse(text);
         } catch (e) {
           console.error("JSON Parse Error:", e);
           throw new Error("فشل في قراءة البيانات من الخادم");
         }
-      } else {
-        throw new Error("استجابة غير صالحة من الخادم");
+      } catch (e) {
+        console.error("Response Error:", e);
+        throw new Error("فشل في قراءة البيانات من الخادم");
       }
 
       if (!response.ok) {
