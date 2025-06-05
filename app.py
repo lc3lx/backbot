@@ -27,6 +27,17 @@ CORS(app, resources={
         "max_age": 3600
     }
 })
+
+# Add CORS headers to all responses
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,Origin,X-Requested-With')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Max-Age', '3600')
+    response.headers.add('Content-Type', 'application/json')
+    return response
+
 # استخدم متغير بيئة للسرية أو افتراضي
 app.secret_key = "aslam2001aslaam23456"
 
