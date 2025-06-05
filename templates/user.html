@@ -32,15 +32,10 @@ content %}
           <button onclick="fetchResidenceUpdateLink()" class="btn btn-primary">
             طلب رابط تحديث السكن
           </button>
+     
+          {% if role == 'normal2' %}
           <button onclick="fetchPasswordResetLink()" class="btn btn-primary">
             طلب استعادة كلمة المرور
-          </button>
-          {% if role == 'normal2' %}
-          <button onclick="fetchLoginCode()" class="btn btn-primary">
-            طلب رمز تسجيل الدخول
-          </button>
-          <button onclick="fetchSuspendedAccountLink()" class="btn btn-primary">
-            طلب رابط عضويتك معلقة
           </button>
           {% endif %}
         </div>
@@ -224,14 +219,6 @@ content %}
     await callApi("fetch-password-reset-link", account);
   }
 
-  async function fetchLoginCode() {
-    const account = document.getElementById("account").value;
-    await callApi("fetch-login-code", account);
-  }
-
-  async function fetchSuspendedAccountLink() {
-    const account = document.getElementById("account").value;
-    await callApi("fetch-suspended-account-link", account);
   }
 </script>
 {% endblock %}
