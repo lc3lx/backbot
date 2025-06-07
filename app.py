@@ -33,12 +33,18 @@ CORS(app, resources={
 def after_request(response):
     # Only add CORS headers for API routes
     if request.path.startswith('/api/'):
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,Origin,X-Requested-With')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-        response.headers.add('Access-Control-Max-Age', '3600')
-        response.headers.add('Content-Type', 'application/json')
-    
+        origin = request.headers.get('Origin')
+        if origin:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Vary'] = 'Origin'
+        else:
+            response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,Accept,Origin,X-Requested-With'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+        response.headers['Access-Control-Max-Age'] = '3600'
+        # لا تفرض Content-Type إلا إذا كان الرد فعلاً JSON
+        if response.is_json:
+            response.headers['Content-Type'] = 'application/json'
     return response
 
 # استخدم متغير بيئة للسرية أو افتراضي
