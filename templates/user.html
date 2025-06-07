@@ -26,17 +26,26 @@ content %}
           />
         </div>
         <div class="d-grid gap-2">
-          <button onclick="fetchResidenceCode()" class="btn btn-primary">
-            طلب رمز السكن
-          </button>
-          <button onclick="fetchResidenceUpdateLink()" class="btn btn-primary">
-            طلب رابط تحديث السكن
-          </button>
-     
-          {% if role == 'normal2' %}
-          <button onclick="fetchPasswordResetLink()" class="btn btn-primary">
-            طلب استعادة كلمة المرور
-          </button>
+          {% if role == 'normal1' %}
+            <button onclick="fetchResidenceCode()" class="btn btn-primary">
+              طلب رمز السكن
+            </button>
+            <button onclick="fetchResidenceUpdateLink()" class="btn btn-primary">
+              طلب رابط تحديث السكن
+            </button>
+          {% elif role == 'normal2' %}
+            <button onclick="fetchResidenceCode()" class="btn btn-primary">
+              طلب رمز السكن
+            </button>
+            <button onclick="fetchResidenceUpdateLink()" class="btn btn-primary">
+              طلب رابط تحديث السكن
+            </button>
+            <button onclick="fetchPasswordResetLink()" class="btn btn-primary">
+              طلب استعادة كلمة المرور
+            </button>
+
+          {% else %}
+            <div class="alert alert-warning">نوع مستخدم غير معروف</div>
           {% endif %}
         </div>
       </div>
@@ -219,6 +228,14 @@ content %}
     await callApi("fetch-password-reset-link", account);
   }
 
+  async function fetchLoginCode() {
+    const account = document.getElementById("account").value;
+    await callApi("fetch-login-code", account);
+  }
+
+  async function fetchSuspendedAccountLink() {
+    const account = document.getElementById("account").value;
+    await callApi("fetch-suspended-account-link", account);
   }
 </script>
 {% endblock %}
