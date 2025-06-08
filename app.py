@@ -47,6 +47,23 @@ def after_request(response):
             response.headers['Content-Type'] = 'application/json'
     return response
 
+# معالجة جميع الأخطاء لتعيد JSON بدلاً من HTML
+from flask import jsonify
+@app.errorhandler(Exception)
+def handle_exception(e):
+    from werkzeug.exceptions import HTTPException
+    code = 500
+    if isinstance(e, HTTPException):
+        code = e.code
+        description = e.description
+    else:
+        description = str(e)
+    response = jsonify({
+        "error": description or "حدث خطأ غير متوقع"
+    })
+    response.status_code = code
+    return response
+
 # استخدم متغير بيئة للسرية أو افتراضي
 app.secret_key = "aslam2001aslaam23456"
 
@@ -366,9 +383,28 @@ def generate_subscription_link():
 @app.route('/user/<token>')
 def user_page(token):
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        user_id = payload.get('user_id')
-        role = payload.get('role')
+        # Set session lifetime to 30 days
+        app.permanent_session_lifetime = timedelta(days=30)
+        session.permanent = True
+
+        # Decode and verify token
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            user_id = payload.get('user_id')
+            role = payload.get('role')
+            
+            if not user_id or not role:
+                print(f"Invalid token data - user_id: {user_id}, role: {role}")
+                session.clear()
+                return render_template('invalid.html')
+        except jwt.ExpiredSignatureError:
+            print("Token expired")
+            session.clear()
+            return render_template('expired.html')
+        except jwt.InvalidTokenError:
+            print("Invalid token")
+            session.clear()
+            return render_template('invalid.html')
         
         # Check subscription
         subscription = subscriptions_coll.find_one({
@@ -377,17 +413,22 @@ def user_page(token):
         })
         
         if not subscription:
+            print(f"Subscription expired for user: {user_id}")
+            session.clear()
             return render_template('expired.html')
         
         # Store user info in session
         session['user_id'] = user_id
         session['user_role'] = role
+        session['token'] = token
+        session['last_activity'] = datetime.now(UTC).isoformat()
         
+        print(f"Session created successfully for user: {user_id}")
         return render_template('user.html', user_id=user_id, role=role)
-    except jwt.ExpiredSignatureError:
-        return render_template('expired.html')
-    except jwt.InvalidTokenError:
-        return render_template('invalid.html')
+    except Exception as e:
+        print(f"Unexpected error in user_page: {str(e)}")
+        session.clear()
+        return render_template('error.html', error="حدث خطأ في قراءة البيانات من الخادم")
 
 # Email-fetch APIs with logging
 @app.route('/api/fetch-residence-update-link', methods=['POST', 'OPTIONS'])
