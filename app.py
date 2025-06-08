@@ -432,7 +432,6 @@ def user_page(token):
 
 # Email-fetch APIs with logging
 @app.route('/api/fetch-residence-update-link', methods=['POST', 'OPTIONS'])
-@admin_required
 def fetch_residence_update_link():
     if request.method == 'OPTIONS':
         response = jsonify({})
@@ -466,7 +465,6 @@ def fetch_residence_update_link():
         return jsonify(error=str(e)), 500, {'Content-Type': 'application/json'}
 
 @app.route('/api/fetch-residence-code', methods=['POST', 'OPTIONS'])
-@admin_required
 def fetch_residence_code():
     if request.method == 'OPTIONS':
         response = jsonify({})
@@ -500,7 +498,6 @@ def fetch_residence_code():
         return jsonify(error=str(e)), 500, {'Content-Type': 'application/json'}
 
 @app.route('/api/fetch-password-reset-link', methods=['POST', 'OPTIONS'])
-@admin_required
 def fetch_password_reset_link():
     if request.method == 'OPTIONS':
         response = jsonify({})
@@ -534,7 +531,6 @@ def fetch_password_reset_link():
         return jsonify(error=str(e)), 500, {'Content-Type': 'application/json'}
 
 @app.route('/api/fetch-login-code', methods=['POST', 'OPTIONS'])
-@admin_required
 def fetch_login_code():
     if request.method == 'OPTIONS':
         response = jsonify({})
@@ -568,7 +564,6 @@ def fetch_login_code():
         return jsonify(error=str(e)), 500, {'Content-Type': 'application/json'}
 
 @app.route('/api/fetch-suspended-account-link', methods=['POST', 'OPTIONS'])
-@admin_required
 def fetch_suspended_account_link():
     if request.method == 'OPTIONS':
         response = jsonify({})
