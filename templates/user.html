@@ -25,34 +25,30 @@ content %}
             placeholder="أدخل الحساب هنا"
           />
         </div>
-        <div class="d-grid gap-2">
+        <div class="d-flex flex-wrap gap-2">
           {% if role == 'normal1' %}
           <button onclick="fetchResidenceCode()" class="btn btn-primary">
-            طلب رمز السكن
+            <i class="fas fa-key"></i> طلب رمز السكن
           </button>
           <button onclick="fetchResidenceUpdateLink()" class="btn btn-primary">
-            طلب رابط تحديث السكن
+            <i class="fas fa-link"></i> طلب رابط تحديث السكن
           </button>
           {% elif role == 'normal2' %}
           <button onclick="fetchResidenceCode()" class="btn btn-primary">
-            طلب رمز السكن
+            <i class="fas fa-key"></i> طلب رمز السكن
           </button>
           <button onclick="fetchResidenceUpdateLink()" class="btn btn-primary">
-            طلب رابط تحديث السكن
+            <i class="fas fa-link"></i> طلب رابط تحديث السكن
           </button>
           <button onclick="fetchPasswordResetLink()" class="btn btn-primary">
-            طلب استعادة كلمة المرور
+            <i class="fas fa-lock"></i> طلب استعادة كلمة المرور
           </button>
-
           {% else %}
           <div class="alert alert-warning">نوع مستخدم غير معروف</div>
           {% endif %}
         </div>
+        <div id="result" class="mt-3"></div>
       </div>
-    </div>
-
-    <div id="result" class="card">
-      <div class="card-body"></div>
     </div>
   </div>
 </div>
@@ -125,36 +121,16 @@ content %}
           "X-Requested-With": "XMLHttpRequest",
         },
         credentials: "include",
+        mode: "cors",
         body: JSON.stringify({ account: account }),
       });
-
-      // التحقق من حالة الاستجابة
-      if (response.status === 401) {
-        window.location.href = "/admin/login"; // إعادة التوجيه إلى صفحة تسجيل الدخول
-        return;
-      }
-
-      if (response.status === 302) {
-        window.location.reload(); // إعادة تحميل الصفحة
-        return;
-      }
 
       let data;
       try {
         data = await response.json();
       } catch (e) {
         console.error("JSON Parse Error:", e);
-        if (response.status === 200) {
-          // إذا كانت الاستجابة ناجحة ولكن ليست JSON
-          resultDiv.innerHTML = `
-            <div class="alert alert-warning mb-0">
-              <i class="fas fa-exclamation-triangle"></i> تم استلام استجابة غير متوقعة من الخادم
-            </div>
-          `;
-        } else {
-          throw new Error("فشل في قراءة البيانات من الخادم");
-        }
-        return;
+        throw new Error("فشل في قراءة البيانات من الخادم");
       }
 
       if (!response.ok) {
@@ -241,16 +217,6 @@ content %}
   async function fetchPasswordResetLink() {
     const account = document.getElementById("account").value;
     await callApi("fetch-password-reset-link", account);
-  }
-
-  async function fetchLoginCode() {
-    const account = document.getElementById("account").value;
-    await callApi("fetch-login-code", account);
-  }
-
-  async function fetchSuspendedAccountLink() {
-    const account = document.getElementById("account").value;
-    await callApi("fetch-suspended-account-link", account);
   }
 </script>
 {% endblock %}
