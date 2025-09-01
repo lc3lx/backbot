@@ -93,6 +93,9 @@ EMAIL = 'aslam.filex@gmail.com'
 PASSWORD =  'urfz fxzi pljl iqxa'
 IMAP_SERVER ='imap.gmail.com'
 
+# فتح الاتصال بالبريد مرة واحدة فقط
+mail = None
+
 # ----------------------------------
 # وظائف مساعدة للبريد
 # ----------------------------------
@@ -103,37 +106,23 @@ def clean_text(text):
 def retry_imap_connection():
     global mail
     try:
-        if 'mail' in globals() and mail:
+        if mail:
             try:
-                mail.noop()  # Check if connection is still alive
+                mail.noop()
                 return
             except:
-                try:
-                    mail.close()
-                    mail.logout()
-                except:
-                    pass
                 mail = None
     except:
         mail = None
-    
     for attempt in range(3):
         try:
             mail = imaplib.IMAP4_SSL(IMAP_SERVER)
             mail.login(EMAIL, PASSWORD)
             print("✅ اتصال IMAP ناجح.")
-            time.sleep(2)  # انتظار 2 ثواني بعد الاتصال
             return
         except Exception as e:
             print(f"❌ فشل الاتصال (المحاولة {attempt + 1}): {e}")
-            if mail:
-                try:
-                    mail.close()
-                    mail.logout()
-                except:
-                    pass
-                mail = None
-            time.sleep(2)
+            mail = None
     print("❌ فشل إعادة الاتصال بعد عدة محاولات.")
     raise Exception("فشل الاتصال بخادم البريد الإلكتروني")
 
@@ -146,7 +135,7 @@ def retry_on_error(func):
                 return func(*args, **kwargs)
             except Exception as e:
                 if "EOF occurred" in str(e) or "socket" in str(e):
-                    time.sleep(2)
+                    # time.sleep(2)  # إزالة الانتظار بعد خطأ في الاتصال
                     print(f"Retrying... Attempt {attempt + 1}/{retries}")
                 else:
                     return f"Error fetching emails: {e}"
@@ -201,19 +190,9 @@ def fetch_email_with_link(account, subject_keywords, button_text):
                 continue
                 
         # Close the connection
-        try:
-            mail.close()
-            mail.logout()
-        except:
-            pass
         return result
     except Exception as e:
         print(f"Error in fetch_email_with_link: {str(e)}")  # Added logging
-        try:
-            mail.close()
-            mail.logout()
-        except:
-            pass
         return f"Error fetching emails: {e}"
 
 @retry_on_error
@@ -263,19 +242,9 @@ def fetch_email_with_code(account, subject_keywords):
                 continue
                 
         # Close the connection
-        try:
-            mail.close()
-            mail.logout()
-        except:
-            pass
         return result
     except Exception as e:
         print(f"Error in fetch_email_with_code: {str(e)}")  # Added logging
-        try:
-            mail.close()
-            mail.logout()
-        except:
-            pass
         return f"Error fetching emails: {e}"
 
 # ----------------------------------
