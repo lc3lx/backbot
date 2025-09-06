@@ -53,6 +53,9 @@ content %}
           <p class="text-muted">اختر الخدمة المطلوبة</p>
           <div class="d-grid gap-2">
             {% if role == 'normal1' %}
+            <button onclick="fetchLoginCode()" class="btn btn-primary text-start">
+              <i class="fas fa-sign-in-alt me-2"></i> طلب رمز تسجيل الدخول
+            </button>
             <button onclick="fetchResidenceCode()" class="btn btn-primary text-start">
               <i class="fas fa-key me-2"></i> طلب رمز السكن
             </button>
